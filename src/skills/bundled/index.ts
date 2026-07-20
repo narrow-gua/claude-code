@@ -45,7 +45,8 @@ export function initBundledSkills(): void {
   registerDreamSkill()
   if (feature('REVIEW_ARTIFACT')) {
     /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerHunterSkill } = require('./hunter.js')
+    const hunterModule = './hunter.js'
+    const { registerHunterSkill } = require(hunterModule)
     /* eslint-enable @typescript-eslint/no-require-imports */
     registerHunterSkill()
   }
@@ -59,7 +60,8 @@ export function initBundledSkills(): void {
   }
   if (feature('BUILDING_CLAUDE_APPS')) {
     /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerClaudeApiSkill } = require('./claudeApi.js')
+    const claudeApiModule = './claudeApi.js'
+    const { registerClaudeApiSkill } = require(claudeApiModule)
     /* eslint-enable @typescript-eslint/no-require-imports */
     registerClaudeApiSkill()
   }
@@ -68,7 +70,8 @@ export function initBundledSkills(): void {
   }
   if (feature('RUN_SKILL_GENERATOR')) {
     /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerRunSkillGeneratorSkill } = require('./runSkillGenerator.js')
+    const generatorModule = './runSkillGenerator.js'
+    const { registerRunSkillGeneratorSkill } = require(generatorModule)
     /* eslint-enable @typescript-eslint/no-require-imports */
     registerRunSkillGeneratorSkill()
   }

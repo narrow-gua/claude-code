@@ -14,6 +14,11 @@ describe('isModelAlias', () => {
     expect(isModelAlias('haiku')).toBe(true)
   })
 
+  test('returns true for additional configured slots', () => {
+    expect(isModelAlias('fable')).toBe(true)
+    expect(isModelAlias('glm')).toBe(true)
+  })
+
   test('returns true for "best"', () => {
     expect(isModelAlias('best')).toBe(true)
   })

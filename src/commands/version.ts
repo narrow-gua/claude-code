@@ -1,11 +1,12 @@
 import type { Command, LocalCommandCall } from '../types/command.js'
+import { PRISM_DISPLAY_VERSION } from '../constants/branding.js'
 
 const call: LocalCommandCall = async () => {
   return {
     type: 'text',
     value: MACRO.BUILD_TIME
-      ? `${MACRO.VERSION} (built ${MACRO.BUILD_TIME})`
-      : MACRO.VERSION,
+      ? `${PRISM_DISPLAY_VERSION} (engine ${MACRO.VERSION}, built ${MACRO.BUILD_TIME})`
+      : `${PRISM_DISPLAY_VERSION} (engine ${MACRO.VERSION})`,
   }
 }
 

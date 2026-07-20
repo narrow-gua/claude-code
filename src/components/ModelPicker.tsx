@@ -73,7 +73,10 @@ export function ModelPicker({
   const exitState = useExitOnCtrlCDWithKeybindings();
   const maxVisible = 10;
 
-  const initialValue = initial === null ? NO_PREFERENCE : initial;
+  // Legacy persisted 1M aliases should focus their base slot instead of
+  // creating a second "current model" row for an obsolete picker entry.
+  const normalizedInitial = initial?.replace(/\[1m\]$/i, '') ?? null;
+  const initialValue = normalizedInitial === null ? NO_PREFERENCE : normalizedInitial;
   const [focusedValue, setFocusedValue] = useState<string | undefined>(initialValue);
 
   const isFastMode = useAppState(s => (isFastModeEnabled() ? s.fastMode : false));
@@ -112,18 +115,18 @@ export function ModelPicker({
   // This handles edge cases where the user's current model (e.g., 'haiku' for 3P users)
   // is not in the base options but should still be selectable and shown as selected
   const optionsWithInitial = useMemo(() => {
-    if (initial !== null && !modelOptions.some(opt => opt.value === initial)) {
+    if (normalizedInitial !== null && !modelOptions.some(opt => opt.value === normalizedInitial)) {
       return [
         ...modelOptions,
         {
-          value: initial,
-          label: modelDisplayString(initial),
+          value: normalizedInitial,
+          label: modelDisplayString(normalizedInitial),
           description: 'Current model',
         },
       ];
     }
     return modelOptions;
-  }, [modelOptions, initial]);
+  }, [modelOptions, normalizedInitial]);
 
   const selectOptions = useMemo(
     () =>

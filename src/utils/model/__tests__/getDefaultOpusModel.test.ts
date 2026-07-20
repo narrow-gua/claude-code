@@ -1,24 +1,24 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { resetModelStringsForTestingOnly } from 'src/bootstrap/state.js'
-import {
-  resetSettingsCache,
-  setSessionSettingsCache,
-} from 'src/utils/settings/settingsCache.js'
-import { ALL_MODEL_CONFIGS } from '../configs.js'
-import { getDefaultOpusModel } from '../model.js'
-import { getOpus46Option } from '../modelOptions.js'
-import { getModelStrings } from '../modelStrings.js'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
+
+mock.module('bun:bundle', () => ({ feature: () => false }))
+mock.module('bundle', () => ({ feature: () => false }))
+
+const { resetModelStringsForTestingOnly } = await import(
+  'src/bootstrap/state.js'
+)
+const { resetSettingsCache, setSessionSettingsCache } = await import(
+  'src/utils/settings/settingsCache.js'
+)
+const { ALL_MODEL_CONFIGS } = await import('../configs.js')
+const { getDefaultOpusModel, getDefaultSonnetModel } = await import(
+  '../model.js'
+)
+const { getModelOptions, getOpus46Option } = await import('../modelOptions.js')
+const { getModelStrings } = await import('../modelStrings.js')
 
 /**
- * Verifies getDefaultOpusModel() returns Opus 4.7 across all providers
- * (firstParty + Bedrock/Vertex/Foundry). This is the Gap #2 assertion:
- * as of 2026-04-17 all 3P vendors have published Opus 4.7, so the fork
- * must not fall back to Opus 4.6 on 3P.
- *
- * Authoritative sources for 3P availability:
- *   - AWS Bedrock: docs.aws.amazon.com/bedrock/.../model-card-anthropic-claude-opus-4-7.html
- *   - Google Vertex AI: docs.cloud.google.com/vertex-ai/.../claude/opus-4-7
- *   - Microsoft Foundry: ai.azure.com/catalog/models/claude-opus-4-7
+ * Verifies the customized Opus/Sonnet slots remain independent from the
+ * active provider's primary model.
  */
 
 const envKeys = [
@@ -29,8 +29,14 @@ const envKeys = [
   'CLAUDE_CODE_USE_OPENAI',
   'CLAUDE_CODE_USE_GROK',
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
   'OPENAI_DEFAULT_OPUS_MODEL',
+  'OPENAI_DEFAULT_SONNET_MODEL',
   'GEMINI_DEFAULT_OPUS_MODEL',
+  'GEMINI_DEFAULT_SONNET_MODEL',
+  'OPENAI_MODEL',
+  'GEMINI_MODEL',
+  'ANTHROPIC_API_KEY',
 ] as const
 
 const savedEnv: Record<string, string | undefined> = {}
@@ -61,23 +67,23 @@ describe('getDefaultOpusModel', () => {
     resetProviderState()
   })
 
-  test('returns Opus 4.7 for firstParty', () => {
-    expect(getDefaultOpusModel()).toBe(ALL_MODEL_CONFIGS.opus47.firstParty)
+  test('returns Opus 4.8 for firstParty', () => {
+    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
   })
 
-  test('returns Opus 4.7 for bedrock (3P no longer lags)', () => {
+  test('returns Opus 4.8 for bedrock', () => {
     process.env.CLAUDE_CODE_USE_BEDROCK = '1'
-    expect(getDefaultOpusModel()).toBe(ALL_MODEL_CONFIGS.opus47.bedrock)
+    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
   })
 
-  test('returns Opus 4.7 for vertex (3P no longer lags)', () => {
+  test('returns Opus 4.8 for vertex', () => {
     process.env.CLAUDE_CODE_USE_VERTEX = '1'
-    expect(getDefaultOpusModel()).toBe(ALL_MODEL_CONFIGS.opus47.vertex)
+    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
   })
 
-  test('returns Opus 4.7 for foundry (3P no longer lags)', () => {
+  test('returns Opus 4.8 for foundry', () => {
     process.env.CLAUDE_CODE_USE_FOUNDRY = '1'
-    expect(getDefaultOpusModel()).toBe(ALL_MODEL_CONFIGS.opus47.foundry)
+    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
   })
 
   test('honors ANTHROPIC_DEFAULT_OPUS_MODEL env override (any provider)', () => {
@@ -90,6 +96,81 @@ describe('getDefaultOpusModel', () => {
     process.env.CLAUDE_CODE_USE_OPENAI = '1'
     process.env.OPENAI_DEFAULT_OPUS_MODEL = 'gpt-5-turbo'
     expect(getDefaultOpusModel()).toBe('gpt-5-turbo')
+  })
+
+  test('does not let an OpenAI primary model replace Opus or Sonnet slots', () => {
+    process.env.CLAUDE_CODE_USE_OPENAI = '1'
+    process.env.OPENAI_MODEL = 'glm-5.2'
+
+    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
+    expect(getDefaultSonnetModel()).toBe('claude-sonnet-5')
+  })
+})
+
+describe('custom model slot picker', () => {
+  beforeEach(() => {
+    for (const key of envKeys) {
+      savedEnv[key] = process.env[key]
+      delete process.env[key]
+    }
+    resetProviderState()
+  })
+
+  afterEach(() => {
+    for (const key of envKeys) {
+      if (savedEnv[key] !== undefined) {
+        process.env[key] = savedEnv[key]
+      } else {
+        delete process.env[key]
+      }
+    }
+    resetProviderState()
+  })
+
+  test('shows one entry per configured slot and removes old core models', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key'
+    const options = getModelOptions()
+
+    expect(options.slice(0, 6).map(option => option.value)).toEqual([
+      null,
+      'opus',
+      'sonnet',
+      'haiku',
+      'fable',
+      'glm',
+    ])
+    expect(options.find(option => option.value === 'opus')?.label).toBe(
+      'Claude Opus 4.8',
+    )
+    expect(options.find(option => option.value === 'sonnet')?.label).toBe(
+      'Claude Sonnet 5',
+    )
+    expect(
+      options.some(option =>
+        String(option.value).match(/claude-(?:opus-4-[67]|sonnet-4-6)/),
+      ),
+    ).toBe(false)
+  })
+
+  test('does not re-add an obsolete 1M row for a persisted slot alias', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key'
+    setSessionSettingsCache({
+      settings: { model: 'opus[1m]' },
+      errors: [],
+    })
+
+    const options = getModelOptions()
+    expect(options.map(option => option.value)).toEqual([
+      null,
+      'opus',
+      'sonnet',
+      'haiku',
+      'fable',
+      'glm',
+    ])
+    expect(options.some(option => option.label.includes('Opus 4.7'))).toBe(
+      false,
+    )
   })
 })
 

@@ -49,8 +49,10 @@ export function modelSupportsEffort(model: string): boolean {
   }
   // Supported by a subset of Claude 4 models
   if (
+    m.includes('opus-4-8') ||
     m.includes('opus-4-7') ||
     m.includes('opus-4-6') ||
+    m.includes('sonnet-5') ||
     m.includes('sonnet-4-6') ||
     m.includes('deepseek-v4-pro')
   ) {
@@ -341,6 +343,7 @@ export function getDefaultEffortForModel(
   // Default effort on Opus 4.6 to medium for Pro.
   // Max/Team also get medium when the tengu_grey_step2 config is enabled.
   if (
+    model.toLowerCase().includes('opus-4-8') ||
     model.toLowerCase().includes('opus-4-7') ||
     model.toLowerCase().includes('opus-4-6')
   ) {

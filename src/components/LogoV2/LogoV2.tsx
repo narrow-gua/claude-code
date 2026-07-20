@@ -67,6 +67,7 @@ import { useAppState } from '../../state/AppState.js';
 import { getEffortSuffix } from '../../utils/effort.js';
 import { useMainLoopModel } from '../../hooks/useMainLoopModel.js';
 import { renderModelSetting } from '../../utils/model/model.js';
+import { CLAUDE_CODE_NAME, PRISM_DISPLAY_VERSION, PRISM_VERSION } from '../../constants/branding.js';
 
 const LEFT_PANEL_MAX_WIDTH = 50;
 
@@ -136,7 +137,7 @@ export function LogoV2(): React.ReactNode {
 
   const model = useMainLoopModel();
   const fullModelDisplayName = renderModelSetting(model);
-  const { version, cwd, billingType, agentName: agentNameFromSettings } = getLogoDisplayData();
+  const { cwd, billingType, agentName: agentNameFromSettings } = getLogoDisplayData();
   // Prefer AppState.agent (set from --agent CLI flag) over settings
   const agentName = agent ?? agentNameFromSettings;
   // -20 to account for the max length of subscription name " · Claude Enterprise".
@@ -201,8 +202,8 @@ export function LogoV2(): React.ReactNode {
   const layoutMode = getLayoutMode(columns);
 
   const userTheme = resolveThemeSetting(getGlobalConfig().theme);
-  const borderTitle = ` ${color('claude', userTheme)('Claude Code')} ${color('inactive', userTheme)(`v${version}`)} `;
-  const compactBorderTitle = color('claude', userTheme)(' Claude Code ');
+  const borderTitle = ` ${color('claude', userTheme)(CLAUDE_CODE_NAME)} ${color('inactive', userTheme)(PRISM_VERSION)} `;
+  const compactBorderTitle = color('claude', userTheme)(` ${PRISM_DISPLAY_VERSION} `);
 
   // Early return for compact mode
   if (layoutMode === 'compact') {

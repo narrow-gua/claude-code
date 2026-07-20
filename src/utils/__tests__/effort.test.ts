@@ -26,6 +26,7 @@ const {
   isValidNumericEffort,
   convertEffortValueToLevel,
   getEffortLevelDescription,
+  modelSupportsEffort,
   resolvePickerEffortPersistence,
   EFFORT_LEVELS,
 } = await import('src/utils/effort.js')
@@ -288,6 +289,18 @@ describe('resolvePickerEffortPersistence', () => {
       false,
     )
     expect(result).toBeUndefined()
+  })
+})
+
+// ─── modelSupportsEffort ───────────────────────────────────────────────
+
+describe('modelSupportsEffort', () => {
+  test('supports Claude Opus 4.8', () => {
+    expect(modelSupportsEffort('claude-opus-4-8')).toBe(true)
+  })
+
+  test('supports Claude Sonnet 5', () => {
+    expect(modelSupportsEffort('claude-sonnet-5')).toBe(true)
   })
 })
 

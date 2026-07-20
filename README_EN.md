@@ -136,11 +136,16 @@ Fields to fill in:
 | Base URL | API service URL | `https://api.example.com/v1` |
 | API Key | Authentication key | `sk-xxx` |
 | Haiku Model | Fast model ID | `claude-haiku-4-5-20251001` |
-| Sonnet Model | Balanced model ID | `claude-sonnet-4-6` |
-| Opus Model | High-performance model ID | `claude-opus-4-6` |
+| Sonnet Model | Balanced model ID | `claude-sonnet-5` |
+| Opus Model | High-performance model ID | `claude-opus-4-8` |
+| Fable Model | Fable model ID | `claude-fable-5` |
+| GLM Model | GLM model ID | `glm-5.2` |
 
 - **Tab / Shift+Tab** to switch fields, **Enter** to confirm and move to the next, press Enter on the last field to save
 - Model fields auto-fill from current environment variables
+- Fable and GLM are additional selectable slots; switch with `/model fable` or `/model glm`
+
+Each model slot can also override API routing. In `/login`, select **Model slot API overrides**, choose the slot and API mode (inherit, Anthropic, OpenAI, or Gemini), then optionally enter a slot-specific Base URL and Auth Key. Blank URL/key fields inherit global values; choosing `inherit` with both blank removes the override.
 - Configuration saves to `~/.claude/settings.json` under the `env` key, effective immediately
 
 You can also edit `~/.claude/settings.json` directly:

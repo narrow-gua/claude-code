@@ -224,7 +224,9 @@ export async function* queryModelOpenAI(
 > {
   try {
     // 1. Resolve model name
-    const openaiModel = resolveOpenAIModel(options.model)
+    const openaiModel = options.apiOverride
+      ? options.model.replace(/\[1m\]$/i, '')
+      : resolveOpenAIModel(options.model)
 
     // 2. Normalize messages using shared preprocessing
     const messagesForAPI = normalizeMessagesForAPI(messages, tools)
@@ -379,6 +381,8 @@ export async function* queryModelOpenAI(
             maxRetries: 0,
             fetchOverride: options.fetchOverride as unknown as typeof fetch,
             source: options.querySource,
+            apiKey: options.apiOverride?.authKey,
+            baseURL: options.apiOverride?.baseUrl,
           }).chat.completions.create(
             buildOpenAIRequestBody({
               model: openaiModel,

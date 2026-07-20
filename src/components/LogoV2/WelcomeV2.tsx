@@ -1,12 +1,13 @@
 import React from 'react';
 import { Box, Text, useTheme } from '@anthropic/ink';
 import { env } from '../../utils/env.js';
+import { CLAUDE_CODE_NAME, PRISM_VERSION } from '../../constants/branding.js';
 
 const WELCOME_V2_WIDTH = 58;
 
 export function WelcomeV2(): React.ReactNode {
   const [theme] = useTheme();
-  const welcomeMessage = 'Welcome to Claude Code';
+  const welcomeMessage = `Welcome to ${CLAUDE_CODE_NAME}`;
 
   if (env.terminal === 'Apple_Terminal') {
     return <AppleTerminalWelcomeV2 theme={theme} welcomeMessage={welcomeMessage} />;
@@ -18,7 +19,7 @@ export function WelcomeV2(): React.ReactNode {
         <Text>
           <Text>
             <Text color="claude">{welcomeMessage} </Text>
-            <Text dimColor>v{MACRO.VERSION} </Text>
+            <Text dimColor>{PRISM_VERSION} </Text>
           </Text>
           <Text>{'…………………………………………………………………………………………………………………………………………………………'}</Text>
           <Text>{'                                                          '}</Text>
@@ -69,7 +70,7 @@ export function WelcomeV2(): React.ReactNode {
       <Text>
         <Text>
           <Text color="claude">{welcomeMessage} </Text>
-          <Text dimColor>v{MACRO.VERSION} </Text>
+          <Text dimColor>{PRISM_VERSION} </Text>
         </Text>
         <Text>{'…………………………………………………………………………………………………………………………………………………………'}</Text>
         <Text>{'                                                          '}</Text>
@@ -129,7 +130,7 @@ function AppleTerminalWelcomeV2({ theme, welcomeMessage }: AppleTerminalWelcomeV
         <Text>
           <Text>
             <Text color="claude">{welcomeMessage} </Text>
-            <Text dimColor>v{MACRO.VERSION} </Text>
+            <Text dimColor>{PRISM_VERSION} </Text>
           </Text>
           <Text>{'…………………………………………………………………………………………………………………………………………………………'}</Text>
           <Text>{'                                                          '}</Text>
@@ -185,7 +186,7 @@ function AppleTerminalWelcomeV2({ theme, welcomeMessage }: AppleTerminalWelcomeV
       <Text>
         <Text>
           <Text color="claude">{welcomeMessage} </Text>
-          <Text dimColor>v{MACRO.VERSION} </Text>
+          <Text dimColor>{PRISM_VERSION} </Text>
         </Text>
         <Text>{'…………………………………………………………………………………………………………………………………………………………'}</Text>
         <Text>{'                                                          '}</Text>

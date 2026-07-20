@@ -17,6 +17,7 @@ import {
   OverageCreditUpsell,
   useShowOverageCreditUpsell,
 } from './OverageCreditUpsell.js';
+import { CLAUDE_CODE_NAME } from '../../constants/branding.js';
 
 export function CondensedLogo(): ReactNode {
   const { columns } = useTerminalSize();
@@ -47,8 +48,8 @@ export function CondensedLogo(): ReactNode {
   // Account for: condensed clawd width (11 chars) + gap (2) + padding (2) = 15 chars
   const textWidth = Math.max(columns - 15, 20);
 
-  // Truncate version to fit within available width, accounting for "Claude Code v" prefix
-  const versionPrefix = 'Claude Code v';
+  // Truncate version to fit within available width, accounting for the product prefix
+  const versionPrefix = `${CLAUDE_CODE_NAME} `;
   const truncatedVersion = truncate(version, Math.max(textWidth - versionPrefix.length, 6));
 
   const effortSuffix = getEffortSuffix(model, effortValue);
@@ -78,7 +79,10 @@ export function CondensedLogo(): ReactNode {
         {/* Info */}
         <Box flexDirection="column">
           <Text>
-            <Text bold>Claude Code</Text> <Text dimColor>v{truncatedVersion}</Text>
+            <Text bold color="claude">
+              {CLAUDE_CODE_NAME}
+            </Text>{' '}
+            <Text dimColor>{truncatedVersion}</Text>
           </Text>
           {shouldSplit ? (
             <>

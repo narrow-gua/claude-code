@@ -13,6 +13,7 @@ import { Box, Link, Text, Tab, Tabs, Pane } from '@anthropic/ink';
 import { useKeybinding } from '../../keybindings/useKeybinding.js';
 import { Commands } from './Commands.js';
 import { General } from './General.js';
+import { PRISM_DISPLAY_VERSION } from '../../constants/branding.js';
 
 type Props = {
   onClose: (result?: string, options?: { display?: CommandResultDisplay }) => void;
@@ -94,7 +95,7 @@ export function HelpV2({ onClose, commands }: Props): React.ReactNode {
     <Box flexDirection="column" height={insideModal ? undefined : maxHeight}>
       <Pane color="professionalBlue">
         <Tabs
-          title={process.env.USER_TYPE === 'ant' ? '/help' : `Claude Code v${MACRO.VERSION}`}
+          title={process.env.USER_TYPE === 'ant' ? '/help' : PRISM_DISPLAY_VERSION}
           color="professionalBlue"
           defaultTab="general"
         >

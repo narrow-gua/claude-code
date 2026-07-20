@@ -17,18 +17,22 @@ import { getSettings_DEPRECATED } from '../settings/settings.js'
 import { checkOpus1mAccess, checkSonnet1mAccess } from './check1mAccess.js'
 import { getAPIProvider } from './providers.js'
 import { isModelAllowed } from './modelAllowlist.js'
+import { isModelAlias } from './aliases.js'
 import {
   getCanonicalName,
   getClaudeAiUserDefaultModelDescription,
   getDefaultSonnetModel,
   getDefaultOpusModel,
   getDefaultHaikuModel,
+  getDefaultFableModel,
+  getDefaultGlmModel,
   getDefaultMainLoopModelSetting,
   getMarketingNameForModel,
   getUserSpecifiedModelSetting,
   isOpus1mMergeEnabled,
   getOpusPricingSuffix,
   renderDefaultModelSetting,
+  renderModelName,
   type ModelSetting,
 } from './model.js'
 import { has1mContext } from '../context.js'
@@ -553,7 +557,47 @@ function getKnownModelOption(model: string): ModelOption | null {
 }
 
 export function getModelOptions(fastMode = false): ModelOption[] {
-  const options = getModelOptionsBase(fastMode)
+  const baseOptions = getModelOptionsBase(fastMode)
+  const defaultOption =
+    baseOptions.find(option => option.value === null) ??
+    getDefaultOptionForUser(fastMode)
+
+  // The customized picker is slot-based. Do not mix the old built-in
+  // 4.6/4.7 entries into it: each alias below is one stable routing slot and
+  // resolves to exactly one configured model ID.
+  const slotOptions: ModelOption[] = [
+    {
+      value: 'opus',
+      label: renderModelName(getDefaultOpusModel()),
+      description: `Opus slot (${getDefaultOpusModel()})`,
+      descriptionForModel: `${renderModelName(getDefaultOpusModel())} (${getDefaultOpusModel()})`,
+    },
+    {
+      value: 'sonnet',
+      label: renderModelName(getDefaultSonnetModel()),
+      description: `Sonnet slot (${getDefaultSonnetModel()})`,
+      descriptionForModel: `${renderModelName(getDefaultSonnetModel())} (${getDefaultSonnetModel()})`,
+    },
+    {
+      value: 'haiku',
+      label: renderModelName(getDefaultHaikuModel()),
+      description: `Haiku slot (${getDefaultHaikuModel()})`,
+      descriptionForModel: `${renderModelName(getDefaultHaikuModel())} (${getDefaultHaikuModel()})`,
+    },
+    {
+      value: 'fable',
+      label: renderModelName(getDefaultFableModel()),
+      description: `Fable slot (${getDefaultFableModel()})`,
+      descriptionForModel: `${renderModelName(getDefaultFableModel())} (${getDefaultFableModel()})`,
+    },
+    {
+      value: 'glm',
+      label: renderModelName(getDefaultGlmModel()),
+      description: `GLM slot (${getDefaultGlmModel()})`,
+      descriptionForModel: `${renderModelName(getDefaultGlmModel())} (${getDefaultGlmModel()})`,
+    },
+  ]
+  const options = [defaultOption, ...slotOptions]
 
   // Add the custom model from the ANTHROPIC_CUSTOM_MODEL_OPTION env var
   const envCustomModel = process.env.ANTHROPIC_CUSTOM_MODEL_OPTION
@@ -587,7 +631,20 @@ export function getModelOptions(fastMode = false): ModelOption[] {
   } else if (initialMainLoopModel !== null) {
     customModel = initialMainLoopModel
   }
-  if (customModel === null || options.some(opt => opt.value === customModel)) {
+  const customModelBaseAlias =
+    typeof customModel === 'string' && has1mContext(customModel)
+      ? customModel.replace(/\[1m\]$/i, '')
+      : customModel
+  if (
+    customModel === null ||
+    options.some(
+      opt =>
+        opt.value === customModel ||
+        (typeof customModelBaseAlias === 'string' &&
+          isModelAlias(customModelBaseAlias) &&
+          opt.value === customModelBaseAlias),
+    )
+  ) {
     return filterModelOptionsByAllowlist(options)
   } else if (customModel === 'opusplan') {
     return filterModelOptionsByAllowlist([...options, getOpusPlanOption()])
@@ -595,11 +652,6 @@ export function getModelOptions(fastMode = false): ModelOption[] {
     return filterModelOptionsByAllowlist([
       ...options,
       getMaxOpusOption(fastMode),
-    ])
-  } else if (customModel === 'opus[1m]' && getAPIProvider() === 'firstParty') {
-    return filterModelOptionsByAllowlist([
-      ...options,
-      getMergedOpus1MOption(fastMode),
     ])
   } else {
     // Try to show a human-readable label for known Anthropic models, with an

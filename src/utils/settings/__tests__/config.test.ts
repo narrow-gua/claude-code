@@ -39,6 +39,32 @@ describe('SettingsSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  test('accepts per-model-slot API overrides', () => {
+    const result = SettingsSchema().safeParse({
+      modelSlotOverrides: {
+        opus: {
+          apiMode: 'anthropic',
+          baseUrl: 'https://opus.example.com/v1',
+          authKey: 'opus-key',
+        },
+        glm: {
+          apiMode: 'openai',
+          baseUrl: 'https://glm.example.com/v1',
+        },
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  test('rejects an unsupported slot API mode', () => {
+    const result = SettingsSchema().safeParse({
+      modelSlotOverrides: {
+        fable: { apiMode: 'unsupported' },
+      },
+    })
+    expect(result.success).toBe(false)
+  })
+
   test('accepts permissions block with allow rules', () => {
     const result = SettingsSchema().safeParse({
       permissions: { allow: ['Bash(npm install)'] },

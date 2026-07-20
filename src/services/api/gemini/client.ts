@@ -11,11 +11,12 @@ const DEFAULT_GEMINI_BASE_URL =
 
 const STREAM_DECODE_OPTS: TextDecodeOptions = { stream: true }
 
-function getGeminiBaseUrl(): string {
-  return (process.env.GEMINI_BASE_URL || DEFAULT_GEMINI_BASE_URL).replace(
-    /\/+$/,
-    '',
-  )
+function getGeminiBaseUrl(override?: string): string {
+  return (
+    override ||
+    process.env.GEMINI_BASE_URL ||
+    DEFAULT_GEMINI_BASE_URL
+  ).replace(/\/+$/, '')
 }
 
 function getGeminiModelPath(model: string): string {
@@ -28,15 +29,17 @@ export async function* streamGeminiGenerateContent(params: {
   body: GeminiGenerateContentRequest
   signal: AbortSignal
   fetchOverride?: typeof fetch
+  baseUrl?: string
+  apiKey?: string
 }): AsyncGenerator<GeminiStreamChunk, void> {
   const fetchImpl = params.fetchOverride ?? fetch
-  const url = `${getGeminiBaseUrl()}/${getGeminiModelPath(params.model)}:streamGenerateContent?alt=sse`
+  const url = `${getGeminiBaseUrl(params.baseUrl)}/${getGeminiModelPath(params.model)}:streamGenerateContent?alt=sse`
 
   const response = await fetchImpl(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-goog-api-key': process.env.GEMINI_API_KEY || '',
+      'x-goog-api-key': params.apiKey || process.env.GEMINI_API_KEY || '',
     },
     body: JSON.stringify(params.body),
     signal: params.signal,

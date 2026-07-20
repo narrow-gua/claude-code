@@ -130,6 +130,7 @@ async function* eventStream(events: BetaRawMessageStreamEvent[]) {
 async function runQueryModel(
   events: BetaRawMessageStreamEvent[],
   envOverrides: Record<string, string | undefined> = {},
+  optionsOverrides: Record<string, unknown> = {},
 ) {
   // Wire events into the mocked stream adapter
   _nextEvents = events
@@ -163,6 +164,7 @@ async function runQueryModel(
         mode: 'default',
         isBypassingPermissions: false,
       }),
+      ...optionsOverrides,
     }
 
     for await (const item of queryModelOpenAI(
@@ -200,6 +202,7 @@ let _searchExtraToolsEnabled = false
 
 /** Captured arguments from the last chat.completions.create() call */
 let _lastCreateArgs: Record<string, any> | null = null
+let _lastClientOptions: Record<string, any> | null = null
 
 mock.module('@ant/model-provider', () => ({
   resolveOpenAIModel: (m: string) => m,
@@ -243,16 +246,19 @@ mock.module('bun:bundle', () => ({
 }))
 
 mock.module('../client.js', () => ({
-  getOpenAIClient: () => ({
-    chat: {
-      completions: {
-        create: async (args: Record<string, any>) => {
-          _lastCreateArgs = args
-          return { [Symbol.asyncIterator]: async function* () {} }
+  getOpenAIClient: (options: Record<string, any>) => {
+    _lastClientOptions = options
+    return {
+      chat: {
+        completions: {
+          create: async (args: Record<string, any>) => {
+            _lastCreateArgs = args
+            return { [Symbol.asyncIterator]: async function* () {} }
+          },
         },
       },
-    },
-  }),
+    }
+  },
 }))
 
 mock.module('../streamAdapter.js', () => ({
@@ -603,6 +609,33 @@ describe('queryModelOpenAI — max_tokens forwarded to request', () => {
     expect(_lastCreateArgs!.max_tokens).toBe(8192)
     // Process-sticky OpenAI cache routing (not message-derived)
     expect(_lastCreateArgs!.prompt_cache_key).toMatch(/^ccb:[0-9a-f-]+$/i)
+  })
+})
+
+describe('queryModelOpenAI — per-slot API override', () => {
+  test('forwards the slot Base URL and Auth Key without changing global env', async () => {
+    _nextEvents = [makeMessageStart(), makeMessageStop()]
+    _lastClientOptions = null
+
+    await runQueryModel(
+      _nextEvents,
+      {},
+      {
+        model: 'glm-5.2',
+        apiOverride: {
+          slot: 'glm',
+          provider: 'openai',
+          apiMode: 'openai',
+          baseUrl: 'https://slot.example.com/v1',
+          authKey: 'slot-key',
+        },
+      },
+    )
+
+    const clientOptions = _lastClientOptions as Record<string, any> | null
+    expect(clientOptions?.baseURL).toBe('https://slot.example.com/v1')
+    expect(clientOptions?.apiKey).toBe('slot-key')
+    expect(_lastCreateArgs?.model).toBe('glm-5.2')
   })
 })
 

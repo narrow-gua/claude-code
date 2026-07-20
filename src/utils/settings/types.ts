@@ -33,6 +33,14 @@ export const EnvironmentVariablesSchema = lazySchema(() =>
   z.record(z.string(), z.coerce.string()),
 )
 
+export const ModelSlotApiOverrideSchema = lazySchema(() =>
+  z.object({
+    apiMode: z.enum(['inherit', 'anthropic', 'openai', 'gemini']),
+    baseUrl: z.string().optional(),
+    authKey: z.string().optional(),
+  }),
+)
+
 /**
  * Schema for permissions section
  */
@@ -376,6 +384,18 @@ export const SettingsSchema = lazySchema(() =>
         .string()
         .optional()
         .describe('Override the default model used by Claude Code'),
+      modelSlotOverrides: z
+        .object({
+          haiku: ModelSlotApiOverrideSchema().optional(),
+          sonnet: ModelSlotApiOverrideSchema().optional(),
+          opus: ModelSlotApiOverrideSchema().optional(),
+          fable: ModelSlotApiOverrideSchema().optional(),
+          glm: ModelSlotApiOverrideSchema().optional(),
+        })
+        .optional()
+        .describe(
+          'Per-model-slot API routing overrides. Each slot may override the API protocol, base URL, and authentication key.',
+        ),
       // Enterprise allowlist of models
       availableModels: z
         .array(z.string())

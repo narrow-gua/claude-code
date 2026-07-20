@@ -2,6 +2,16 @@ import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from 
 import { getInitialSettings } from '../settings/settings.js'
 import type { SettingsJson } from '../settings/types.js'
 import { isEnvTruthy } from '../envUtils.js'
+import {
+  resolveModelSlotApiOverride,
+  type ResolvedModelSlotApiOverride,
+} from './modelSlotRouting.js'
+export {
+  getModelSlotForModel,
+  type ModelSlotApiMode,
+  type ModelSlotName,
+  type ResolvedModelSlotApiOverride,
+} from './modelSlotRouting.js'
 
 export type APIProvider =
   | 'firstParty'
@@ -11,6 +21,33 @@ export type APIProvider =
   | 'openai'
   | 'gemini'
   | 'grok'
+
+export function getModelSlotApiOverride(
+  model: string,
+  settings: Pick<
+    SettingsJson,
+    'modelType' | 'modelSlotOverrides'
+  > = getInitialSettings(),
+): ResolvedModelSlotApiOverride | undefined {
+  return resolveModelSlotApiOverride(
+    model,
+    settings.modelSlotOverrides,
+    getAPIProvider(settings),
+  )
+}
+
+export function getAPIProviderForModel(
+  model: string,
+  settings: Pick<
+    SettingsJson,
+    'modelType' | 'modelSlotOverrides'
+  > = getInitialSettings(),
+): APIProvider {
+  return (
+    getModelSlotApiOverride(model, settings)?.provider ??
+    getAPIProvider(settings)
+  )
+}
 
 export function getAPIProvider(
   settings: Pick<SettingsJson, 'modelType'> = getInitialSettings(),

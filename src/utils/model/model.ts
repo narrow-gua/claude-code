@@ -120,20 +120,7 @@ export function getBestModel(): ModelName {
   return getDefaultOpusModel()
 }
 
-/**
- * Resolve the provider's primary model from its env var (e.g. OPENAI_MODEL).
- * Returns undefined for providers that don't have a primary-model env var
- * (Bedrock, Vertex, Foundry, firstParty).
- */
-function getProviderPrimaryModel(): ModelName | undefined {
-  const provider = getAPIProvider()
-  if (provider === 'openai') return process.env.OPENAI_MODEL
-  if (provider === 'gemini') return process.env.GEMINI_MODEL
-  if (provider === 'grok') return process.env.GROK_MODEL
-  return undefined
-}
-
-// @[MODEL LAUNCH]: Update the default Opus model (3P providers may lag so keep defaults unchanged).
+// @[MODEL LAUNCH]: Update the default Opus model.
 export function getDefaultOpusModel(): ModelName {
   const provider = getAPIProvider()
   if (provider === 'openai' && isChatGPTAuthMode()) {
@@ -151,19 +138,12 @@ export function getDefaultOpusModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_OPUS_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
   }
-  // 3P providers: if user set a primary model (e.g. OPENAI_MODEL=glm-5.1),
-  // fall back to it instead of a hardcoded Anthropic model. This prevents
-  // sideQuery / background tasks from sending requests to Anthropic's API
-  // when the user configured a third-party provider.
-  const primaryModel = getProviderPrimaryModel()
-  if (primaryModel) return primaryModel
-  if (provider !== 'firstParty') {
-    return getModelStrings().opus47
-  }
-  return getModelStrings().opus47
+  // Keep the Opus slot independent from the provider's primary model. A
+  // primary GLM/OpenAI model must not silently replace the Opus slot.
+  return 'claude-opus-4-8'
 }
 
-// @[MODEL LAUNCH]: Update the default Sonnet model (3P providers may lag so keep defaults unchanged).
+// @[MODEL LAUNCH]: Update the default Sonnet model.
 export function getDefaultSonnetModel(): ModelName {
   const provider = getAPIProvider()
   if (provider === 'openai' && isChatGPTAuthMode()) {
@@ -181,15 +161,9 @@ export function getDefaultSonnetModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_SONNET_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
   }
-  // 3P providers: fall back to user's primary model instead of a hardcoded
-  // Anthropic model name. Prevents background API calls from being routed to
-  // Anthropic when the user configured a third-party endpoint.
-  const primaryModel = getProviderPrimaryModel()
-  if (primaryModel) return primaryModel
-  if (provider !== 'firstParty') {
-    return getModelStrings().sonnet45
-  }
-  return getModelStrings().sonnet46
+  // Keep the Sonnet slot independent from the provider's primary model. A
+  // primary GLM/OpenAI model must not silently replace the Sonnet slot.
+  return 'claude-sonnet-5'
 }
 
 // @[MODEL LAUNCH]: Update the default Haiku model (3P providers may lag so keep defaults unchanged).
@@ -210,13 +184,37 @@ export function getDefaultHaikuModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
   }
-  // 3P providers: fall back to user's primary model instead of a hardcoded
-  // Anthropic model name.
-  const primaryModel = getProviderPrimaryModel()
-  if (primaryModel) return primaryModel
-
   // Haiku 4.5 is available on all platforms (first-party, Foundry, Bedrock, Vertex)
   return getModelStrings().haiku45
+}
+
+/**
+ * Resolve an additional user-configured model slot for the active API
+ * provider. Unlike Haiku/Sonnet/Opus these slots are explicit picker targets;
+ * they are not used automatically for background-task routing.
+ */
+function getAdditionalModelSlot(
+  slot: 'FABLE' | 'GLM',
+  fallback: string,
+): ModelName {
+  const provider = getAPIProvider()
+  if (provider === 'openai') {
+    const model = process.env[`OPENAI_DEFAULT_${slot}_MODEL`]
+    if (model) return model
+  }
+  if (provider === 'gemini') {
+    const model = process.env[`GEMINI_DEFAULT_${slot}_MODEL`]
+    if (model) return model
+  }
+  return process.env[`ANTHROPIC_DEFAULT_${slot}_MODEL`] || fallback
+}
+
+export function getDefaultFableModel(): ModelName {
+  return getAdditionalModelSlot('FABLE', 'claude-fable-5')
+}
+
+export function getDefaultGlmModel(): ModelName {
+  return getAdditionalModelSlot('GLM', 'glm-5.2')
 }
 
 /**
@@ -434,6 +432,14 @@ export function renderModelSetting(setting: ModelName | ModelAlias): string {
  */
 export function getPublicModelDisplayName(model: ModelName): string | null {
   switch (model) {
+    case 'claude-opus-4-8':
+      return 'Claude Opus 4.8'
+    case 'claude-sonnet-5':
+      return 'Claude Sonnet 5'
+    case 'claude-fable-5':
+      return 'Claude Fable 5'
+    case 'glm-5.2':
+      return 'GLM 5.2'
     case getModelStrings().opus47:
       return 'Opus 4.7'
     case getModelStrings().opus47 + '[1m]':
@@ -551,6 +557,10 @@ export function parseUserSpecifiedModel(
         return getDefaultSonnetModel() + (has1mTag ? '[1m]' : '')
       case 'haiku':
         return getDefaultHaikuModel() + (has1mTag ? '[1m]' : '')
+      case 'fable':
+        return getDefaultFableModel() + (has1mTag ? '[1m]' : '')
+      case 'glm':
+        return getDefaultGlmModel() + (has1mTag ? '[1m]' : '')
       case 'opus':
         return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
       case 'best':

@@ -49,7 +49,9 @@ export async function* queryModelGemini(
   void
 > {
   try {
-    const geminiModel = resolveGeminiModel(options.model)
+    const geminiModel = options.apiOverride
+      ? options.model.replace(/\[1m\]$/i, '')
+      : resolveGeminiModel(options.model)
     const messagesForAPI = normalizeMessagesForAPI(messages, tools)
 
     const toolSchemas = await Promise.all(
@@ -85,6 +87,8 @@ export async function* queryModelGemini(
       model: geminiModel,
       signal,
       fetchOverride: options.fetchOverride as typeof fetch | undefined,
+      baseUrl: options.apiOverride?.baseUrl,
+      apiKey: options.apiOverride?.authKey,
       body: {
         contents,
         ...(systemInstruction && { systemInstruction }),
