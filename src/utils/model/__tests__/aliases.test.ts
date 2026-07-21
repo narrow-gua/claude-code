@@ -17,6 +17,7 @@ describe('isModelAlias', () => {
   test('returns true for additional configured slots', () => {
     expect(isModelAlias('fable')).toBe(true)
     expect(isModelAlias('glm')).toBe(true)
+    expect(isModelAlias('grok')).toBe(true)
   })
 
   test('returns true for "best"', () => {

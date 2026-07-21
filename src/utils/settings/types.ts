@@ -391,6 +391,7 @@ export const SettingsSchema = lazySchema(() =>
           opus: ModelSlotApiOverrideSchema().optional(),
           fable: ModelSlotApiOverrideSchema().optional(),
           glm: ModelSlotApiOverrideSchema().optional(),
+          grok: ModelSlotApiOverrideSchema().optional(),
         })
         .optional()
         .describe(

@@ -26,6 +26,7 @@ import {
   getDefaultHaikuModel,
   getDefaultFableModel,
   getDefaultGlmModel,
+  getDefaultGrokModel,
   getDefaultMainLoopModelSetting,
   getMarketingNameForModel,
   getUserSpecifiedModelSetting,
@@ -595,6 +596,12 @@ export function getModelOptions(fastMode = false): ModelOption[] {
       label: renderModelName(getDefaultGlmModel()),
       description: `GLM slot (${getDefaultGlmModel()})`,
       descriptionForModel: `${renderModelName(getDefaultGlmModel())} (${getDefaultGlmModel()})`,
+    },
+    {
+      value: 'grok',
+      label: renderModelName(getDefaultGrokModel()),
+      description: `Grok slot (${getDefaultGrokModel()})`,
+      descriptionForModel: `${renderModelName(getDefaultGrokModel())} (${getDefaultGrokModel()})`,
     },
   ]
   const options = [defaultOption, ...slotOptions]

@@ -15,12 +15,13 @@ describe('model slot routing', () => {
     expect(getModelSlotForModel('glm-special', env)).toBe('glm')
   })
 
-  test('recognizes all five slot families and strips 1m suffix', () => {
+  test('recognizes all six slot families and strips 1m suffix', () => {
     expect(getModelSlotForModel('claude-haiku-4-5')).toBe('haiku')
     expect(getModelSlotForModel('claude-sonnet-5')).toBe('sonnet')
     expect(getModelSlotForModel('claude-opus-4-8[1m]')).toBe('opus')
     expect(getModelSlotForModel('claude-fable-5')).toBe('fable')
     expect(getModelSlotForModel('glm-5.2')).toBe('glm')
+    expect(getModelSlotForModel('grok-4.5')).toBe('grok')
   })
 
   test('resolves explicit protocol, URL, and key for a slot', () => {

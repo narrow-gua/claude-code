@@ -107,6 +107,7 @@ const MODEL_SLOT_LABELS: Record<ModelSlotName, string> = {
   opus: 'Opus',
   fable: 'Fable',
   glm: 'GLM',
+  grok: 'Grok',
 };
 const MODEL_SLOT_NAMES = Object.keys(MODEL_SLOT_LABELS) as ModelSlotName[];
 export function ConsoleOAuthFlow({

@@ -194,7 +194,7 @@ export function getDefaultHaikuModel(): ModelName {
  * they are not used automatically for background-task routing.
  */
 function getAdditionalModelSlot(
-  slot: 'FABLE' | 'GLM',
+  slot: 'FABLE' | 'GLM' | 'GROK',
   fallback: string,
 ): ModelName {
   const provider = getAPIProvider()
@@ -215,6 +215,10 @@ export function getDefaultFableModel(): ModelName {
 
 export function getDefaultGlmModel(): ModelName {
   return getAdditionalModelSlot('GLM', 'glm-5.2')
+}
+
+export function getDefaultGrokModel(): ModelName {
+  return getAdditionalModelSlot('GROK', 'grok-4.5')
 }
 
 /**
@@ -440,6 +444,8 @@ export function getPublicModelDisplayName(model: ModelName): string | null {
       return 'Claude Fable 5'
     case 'glm-5.2':
       return 'GLM 5.2'
+    case 'grok-4.5':
+      return 'Grok 4.5'
     case getModelStrings().opus47:
       return 'Opus 4.7'
     case getModelStrings().opus47 + '[1m]':
@@ -561,6 +567,8 @@ export function parseUserSpecifiedModel(
         return getDefaultFableModel() + (has1mTag ? '[1m]' : '')
       case 'glm':
         return getDefaultGlmModel() + (has1mTag ? '[1m]' : '')
+      case 'grok':
+        return getDefaultGrokModel() + (has1mTag ? '[1m]' : '')
       case 'opus':
         return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
       case 'best':

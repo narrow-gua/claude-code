@@ -1,4 +1,10 @@
-export type ModelSlotName = 'haiku' | 'sonnet' | 'opus' | 'fable' | 'glm'
+export type ModelSlotName =
+  | 'haiku'
+  | 'sonnet'
+  | 'opus'
+  | 'fable'
+  | 'glm'
+  | 'grok'
 export type ModelSlotApiMode = 'inherit' | 'anthropic' | 'openai' | 'gemini'
 export type ModelSlotRoutingProvider =
   | 'firstParty'
@@ -53,6 +59,11 @@ const SLOT_MODEL_ENV_VARS: Record<ModelSlotName, string[]> = {
     'OPENAI_DEFAULT_GLM_MODEL',
     'GEMINI_DEFAULT_GLM_MODEL',
   ],
+  grok: [
+    'ANTHROPIC_DEFAULT_GROK_MODEL',
+    'OPENAI_DEFAULT_GROK_MODEL',
+    'GEMINI_DEFAULT_GROK_MODEL',
+  ],
 }
 
 function normalizeSlotModel(model: string): string {
@@ -87,6 +98,7 @@ export function getModelSlotForModel(
   if (normalized.includes('opus')) return 'opus'
   if (normalized.includes('fable')) return 'fable'
   if (normalized.includes('glm')) return 'glm'
+  if (normalized.includes('grok')) return 'grok'
   return undefined
 }
 
