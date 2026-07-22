@@ -64,6 +64,7 @@ type Props = {
   setHistoryQuery: (query: string) => void;
   historyFailedMatch: boolean;
   onOpenTasksDialog?: (taskId?: string) => void;
+  responseLengthRef: React.RefObject<number>;
 };
 
 function PromptInputFooter({
@@ -99,6 +100,7 @@ function PromptInputFooter({
   setHistoryQuery,
   historyFailedMatch,
   onOpenTasksDialog,
+  responseLengthRef,
 }: Props): ReactNode {
   const settings = useSettings();
   const { columns, rows } = useTerminalSize();
@@ -176,6 +178,7 @@ function PromptInputFooter({
             setHistoryQuery={setHistoryQuery}
             historyFailedMatch={historyFailedMatch}
             onOpenTasksDialog={onOpenTasksDialog}
+            responseLengthRef={responseLengthRef}
           />
         </Box>
         <Box flexShrink={1} gap={1}>

@@ -36,7 +36,7 @@ import { usePrStatus } from '../../hooks/usePrStatus.js';
 import { Byline, KeyboardShortcutHint } from '@anthropic/ink';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { useTasksV2 } from '../../hooks/useTasksV2.js';
-import { formatDuration, formatFileSize } from '../../utils/format.js';
+import { formatDuration, formatTokens } from '../../utils/format.js';
 import { VoiceWarmupHint } from './VoiceIndicator.js';
 import { useVoiceEnabled } from '../../hooks/useVoiceEnabled.js';
 import { useVoiceState } from '../../context/voice.js';
@@ -45,6 +45,9 @@ import { isXtermJs, useHasSelection, useSelection } from '@anthropic/ink';
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js';
 import { getPlatform } from '../../utils/platform.js';
 import { PrBadge } from '../PrBadge.js';
+import { getTotalInputTokens, getTotalOutputTokens } from '../../cost-tracker.js';
+import { useMainLoopModel } from '../../hooks/useMainLoopModel.js';
+import { renderModelName } from '../../utils/model/model.js';
 
 // Dead code elimination: conditional import for proactive mode
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -54,25 +57,47 @@ const NO_OP_SUBSCRIBE = (_cb: () => void) => () => {};
 const NULL = () => null;
 const MAX_VOICE_HINT_SHOWS = 3;
 
-const RSS_UPDATE_INTERVAL_MS = 5_000;
+const TOKEN_RATE_UPDATE_INTERVAL_MS = 1_000;
 const GOAL_TICK_INTERVAL_MS = 1_000;
 
-type RssState = { text: string; level: 'normal' | 'warning' | 'error' };
+function useTokenStats(
+  responseLengthRef: React.RefObject<number>,
+  isLoading: boolean,
+): {
+  totalTokens: number;
+  tokensPerSecond: number;
+} {
+  const [stats, setStats] = useState(() => ({
+    totalTokens: getTotalInputTokens() + getTotalOutputTokens(),
+    tokensPerSecond: 0,
+  }));
+  const previousSampleRef = useRef({ responseLength: responseLengthRef.current, sampledAt: Date.now() });
 
-function useRssDisplay(): RssState | null {
-  const [state, setState] = useState<RssState | null>(null);
   useEffect(() => {
     function update(): void {
-      const mb = process.memoryUsage().rss / (1024 * 1024);
-      const level = mb >= 1024 ? 'error' : mb >= 512 ? 'warning' : 'normal';
-      const text = formatFileSize(mb * 1024 * 1024);
-      setState(prev => (prev?.text === text ? prev : { text, level }));
+      const now = Date.now();
+      const responseLength = responseLengthRef.current;
+      const elapsedSeconds = Math.max((now - previousSampleRef.current.sampledAt) / 1000, 0.001);
+      const streamedCharacters = Math.max(responseLength - previousSampleRef.current.responseLength, 0);
+      const tokensPerSecond = isLoading ? streamedCharacters / 4 / elapsedSeconds : 0;
+      const totalTokens = getTotalInputTokens() + getTotalOutputTokens();
+
+      previousSampleRef.current = { responseLength, sampledAt: now };
+      setStats(previous => {
+        const roundedRate = Math.round(tokensPerSecond * 10) / 10;
+        return previous.totalTokens === totalTokens && previous.tokensPerSecond === roundedRate
+          ? previous
+          : { totalTokens, tokensPerSecond: roundedRate };
+      });
     }
+
+    previousSampleRef.current = { responseLength: responseLengthRef.current, sampledAt: Date.now() };
     update();
-    const timer = setInterval(update, RSS_UPDATE_INTERVAL_MS);
+    const timer = setInterval(update, TOKEN_RATE_UPDATE_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, []);
-  return state;
+  }, [isLoading, responseLengthRef]);
+
+  return stats;
 }
 
 type Props = {
@@ -96,6 +121,7 @@ type Props = {
   setHistoryQuery: (query: string) => void;
   historyFailedMatch: boolean;
   onOpenTasksDialog?: (taskId?: string) => void;
+  responseLengthRef: React.RefObject<number>;
 };
 
 function ProactiveCountdown(): React.ReactNode {
@@ -194,6 +220,7 @@ export function PromptInputFooterLeftSide({
   setHistoryQuery,
   historyFailedMatch,
   onOpenTasksDialog,
+  responseLengthRef,
 }: Props): React.ReactNode {
   if (exitMessage.show) {
     return (
@@ -232,6 +259,7 @@ export function PromptInputFooterLeftSide({
         teammateFooterIndex={teammateFooterIndex}
         tmuxSelected={tmuxSelected}
         onOpenTasksDialog={onOpenTasksDialog}
+        responseLengthRef={responseLengthRef}
       />
     </Box>
   );
@@ -247,6 +275,7 @@ type ModeIndicatorProps = {
   tmuxSelected: boolean;
   teammateFooterIndex?: number;
   onOpenTasksDialog?: (taskId?: string) => void;
+  responseLengthRef: React.RefObject<number>;
 };
 
 function ModeIndicator({
@@ -259,6 +288,7 @@ function ModeIndicator({
   tmuxSelected,
   teammateFooterIndex,
   onOpenTasksDialog,
+  responseLengthRef,
 }: ModeIndicatorProps): React.ReactNode {
   const { columns } = useTerminalSize();
   const modeCycleShortcut = useShortcutDisplay('chat:cycleMode', 'Chat', 'shift+tab');
@@ -329,7 +359,8 @@ function ModeIndicator({
     }
   }, [voiceEnabled, voiceHintUnderCap]);
   const isKillAgentsConfirmShowing = useAppState(s => s.notifications.current?.key === 'kill-agents-confirm');
-  const rssState = useRssDisplay();
+  const mainLoopModel = useMainLoopModel();
+  const tokenStats = useTokenStats(responseLengthRef, isLoading);
 
   // Derive team info from teamContext (no filesystem I/O needed)
   // Match the same logic as TeamStatus to avoid trailing separator
@@ -414,19 +445,11 @@ function ModeIndicator({
     ...(shouldShowPrStatus
       ? [<PrBadge key="pr-status" number={prStatus.number!} url={prStatus.url!} reviewState={prStatus.reviewState!} />]
       : []),
-    // RSS memory indicator — always visible
-    ...(rssState
-      ? [
-          <Text
-            key="rss"
-            dimColor={rssState.level === 'normal'}
-            color={rssState.level === 'error' ? 'error' : rssState.level === 'warning' ? 'warning' : undefined}
-          >
-            {rssState.text} · pid:{process.pid}
-          </Text>,
-        ]
-      : []),
-    // Goal elapsed indicator — compact "goal (XhYmin)" after PID
+    <Text key="model-token-stats" dimColor>
+      {renderModelName(mainLoopModel)} · {formatTokens(tokenStats.totalTokens)} tokens ·{' '}
+      {tokenStats.tokensPerSecond.toFixed(1)} tok/s
+    </Text>,
+    // Goal elapsed indicator — compact "goal (XhYmin)" after token stats
     ...(feature('GOAL') &&
     (require('../../services/goal/goalState.js') as typeof import('../../services/goal/goalState')).getGoal()
       ? [<GoalElapsedIndicator key="goal-elapsed" />]

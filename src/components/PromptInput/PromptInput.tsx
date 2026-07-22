@@ -216,6 +216,7 @@ type Props = {
     cursorOffset: number;
   } | null>;
   voiceInterimRange?: { start: number; end: number } | null;
+  responseLengthRef: React.RefObject<number>;
 };
 
 // Bottom slot has maxHeight="50%"; reserve lines for footer, border, status.
@@ -265,6 +266,7 @@ function PromptInput({
   isLocalJSXCommandActive = false,
   insertTextRef,
   voiceInterimRange,
+  responseLengthRef,
 }: Props): React.ReactNode {
   const mainLoopModel = useMainLoopModel();
   // A local-jsx command (e.g., /mcp while agent is running) renders a full-
@@ -2552,6 +2554,7 @@ function PromptInput({
         setHistoryQuery={setHistoryQuery}
         historyFailedMatch={historyFailedMatch}
         onOpenTasksDialog={isFullscreenEnvEnabled() ? handleOpenTasksDialog : undefined}
+        responseLengthRef={responseLengthRef}
       />
       {isFullscreenEnvEnabled() ? (
         // position=absolute takes zero layout height so the spinner

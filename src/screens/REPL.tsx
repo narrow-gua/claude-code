@@ -6529,6 +6529,7 @@ export function REPL({
                       setHelpOpen={setIsHelpOpen}
                       insertTextRef={feature('VOICE_MODE') ? insertTextRef : undefined}
                       voiceInterimRange={voice.interimRange}
+                      responseLengthRef={responseLengthRef}
                     />
                     <SessionBackgroundHint onBackgroundSession={handleBackgroundSession} isLoading={isLoading} />
                     <BackgroundAgentSelector />

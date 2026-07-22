@@ -5300,10 +5300,10 @@ async function run(): Promise<CommanderCommand> {
       await installHandler(target, options);
     });
 
-  // claude update — update ccb to the latest version via npm or bun
+  // prism update — update the CLI to the latest version via npm or bun
   program
     .command('update')
-    .description('Update claude-code-best (ccb) to the latest version')
+    .description('Update prism to the latest version')
     .action(async () => {
       const { updateCCB } = await import('./cli/updateCCB.js');
       await updateCCB();
