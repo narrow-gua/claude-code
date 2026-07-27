@@ -6,6 +6,7 @@ mock.module('src/utils/thinking.js', () => ({
 }))
 mock.module('src/utils/settings/settings.js', () => ({
   getInitialSettings: () => ({}),
+  getSettingsForSource: () => undefined,
 }))
 mock.module('src/utils/auth.js', () => ({
   isProSubscriber: () => false,
@@ -22,6 +23,7 @@ mock.module('src/utils/model/modelSupportOverrides.js', () => ({
 
 const {
   isEffortLevel,
+  computeSessionEffortCommand,
   parseEffortValue,
   isValidNumericEffort,
   convertEffortValueToLevel,
@@ -36,6 +38,20 @@ const {
 describe('EFFORT_LEVELS', () => {
   test('contains the five canonical levels', () => {
     expect(EFFORT_LEVELS).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
+  })
+})
+
+describe('effort session isolation', () => {
+  test('sets a level in the current session without requiring a settings writer', () => {
+    const result = computeSessionEffortCommand('xhigh')
+    expect(result.effortUpdate).toEqual({ value: 'xhigh' })
+    expect(result.message).toContain('this session only')
+  })
+
+  test('auto only clears the current session override', () => {
+    const result = computeSessionEffortCommand('auto')
+    expect(result.effortUpdate).toEqual({ value: undefined })
+    expect(result.message).toContain('this session only')
   })
 })
 
@@ -306,6 +322,32 @@ describe('modelSupportsEffort', () => {
 
   test('supports Claude Sonnet 5', () => {
     expect(modelSupportsEffort('claude-sonnet-5')).toBe(true)
+  })
+
+  test('supports every Prism model slot', () => {
+    for (const model of [
+      'claude-haiku-4-5-20251001',
+      'claude-fable-5',
+      'glm-5.2',
+      'grok-4.5',
+      'kimi-k3',
+    ]) {
+      expect(modelSupportsEffort(model)).toBe(true)
+    }
+  })
+
+  test('supports a custom model ID assigned to a Prism slot', () => {
+    const previous = process.env.ANTHROPIC_DEFAULT_KIMI_MODEL
+    process.env.ANTHROPIC_DEFAULT_KIMI_MODEL = 'vendor/custom-reasoner'
+    try {
+      expect(modelSupportsEffort('vendor/custom-reasoner')).toBe(true)
+    } finally {
+      if (previous === undefined) {
+        delete process.env.ANTHROPIC_DEFAULT_KIMI_MODEL
+      } else {
+        process.env.ANTHROPIC_DEFAULT_KIMI_MODEL = previous
+      }
+    }
   })
 })
 

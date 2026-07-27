@@ -18,6 +18,7 @@ import { useRippleFrame } from './useRippleFrame.js';
 import {
   TRANSPARENT,
   type Overlay,
+  type RipplePalette,
   type Segment,
   applyOverlaysToCells,
   cellsToSegments,
@@ -34,11 +35,14 @@ import {
 const MIN_SEGMENT = 12;
 
 const SUBLABEL_ULTRACODE = 'xhigh + workflows';
+const MAX_EFFORT_WARNING =
+  'May use excessive tokens resulting in long response times or overthinking. Use sparingly for the hardest tasks.';
 
 // 颜色：与项目主题对齐（suggestion=Medium blue #5769F7）。
 const COLOR_LABEL_SELECTED = '#5769F7'; // 选中档位（suggestion）
 const COLOR_LABEL_DEFAULT = '#7a8eff'; // 未选中档位（淡紫蓝，与波纹背景协调）
 const COLOR_OVERLAY = '#5769F7'; // Faster / Smarter / ▲ 等 overlay 文字
+const COLOR_ULTRACODE = '#a56bff';
 
 // 淡入淡出每帧步长：60ms 间隔下 5 帧达到目标 ≈ 300ms 动画时长。
 const FADE_STEP = 0.2;
@@ -73,11 +77,11 @@ function computeSegment(terminalColumns: number): number {
  * SEGMENT=12 → 60 + 1 + 4 = 65（与历史值一致）
  * SEGMENT=20 → 100 + 5 + 4 = 109
  */
-function computeRippleSourceX(segment: number): number {
-  const LABEL_LEN = 9; // 'ultracode'
-  const offset = Math.max(0, Math.floor((segment - LABEL_LEN) / 2));
-  const labelCenter = Math.floor(LABEL_LEN / 2); // 4
-  return segment * (PANEL_POSITIONS.length - 1) + offset + labelCenter;
+function computeRippleSourceX(segment: number, mode: RipplePalette): number {
+  const position: PanelPosition = mode === 'rainbow' ? 'max' : 'ultracode';
+  return (
+    segmentTextStartX(PANEL_POSITIONS.indexOf(position), position.length, segment) + Math.floor(position.length / 2)
+  );
 }
 
 /**
@@ -102,7 +106,6 @@ export function EffortPanel({ appStateEffort, onDone }: Props): React.ReactNode 
   // 终端变化（resize）时 columns 改变 → 重新计算 → 重渲染。
   const segment = React.useMemo(() => computeSegment(columns), [columns]);
   const panelWidth = segment * PANEL_POSITIONS.length;
-  const rippleSourceX = React.useMemo(() => computeRippleSourceX(segment), [segment]);
 
   const envOverride = getEffortEnvOverride();
   const displayed = getDisplayedEffortLevel(model, appStateEffort);
@@ -111,23 +114,31 @@ export function EffortPanel({ appStateEffort, onDone }: Props): React.ReactNode 
   const [cursor, setCursor] = React.useState<PanelPosition>(initialCursor);
   const [done, setDone] = React.useState(false);
 
-  const isOnUltracode = cursor === 'ultracode';
+  const activeRippleMode: RipplePalette | null =
+    cursor === 'max' ? 'rainbow' : cursor === 'ultracode' ? 'purple' : null;
+  const [lastRippleMode, setLastRippleMode] = React.useState<RipplePalette>(activeRippleMode ?? 'purple');
+  const rippleMode = activeRippleMode ?? lastRippleMode;
+  const rippleSourceX = React.useMemo(() => computeRippleSourceX(segment, rippleMode), [segment, rippleMode]);
   const [fade, setFade] = React.useState(0);
-  // 仍在波纹模式：cursor 在 ultracode，或退出动画未结束（fade > 0）
-  const showingRipple = isOnUltracode || fade > 0.001;
+  // max 使用彩虹波纹，ultracode 使用固定紫色波纹；移出时保留淡出帧。
+  const showingRipple = activeRippleMode !== null || fade > 0.001;
   const [rippleRef, time] = useRippleFrame(showingRipple);
+
+  React.useEffect(() => {
+    if (activeRippleMode !== null) setLastRippleMode(activeRippleMode);
+  }, [activeRippleMode]);
 
   // 淡入淡出驱动：每 tick（time 推进）朝目标步进 FADE_STEP。
   // 退出动画完成后 fade 归零，showingRipple 变 false，时钟停止订阅。
   React.useEffect(() => {
     if (!showingRipple) return;
-    const target = isOnUltracode ? 1 : 0;
+    const target = activeRippleMode !== null ? 1 : 0;
     setFade(prev => {
       if (prev === target) return prev;
       const next = target > prev ? prev + FADE_STEP : prev - FADE_STEP;
       return target > prev ? Math.min(target, next) : Math.max(target, next);
     });
-  }, [time, isOnUltracode, showingRipple]);
+  }, [time, activeRippleMode, showingRipple]);
 
   const handleConfirm = React.useCallback(() => {
     if (done) return;
@@ -174,12 +185,13 @@ export function EffortPanel({ appStateEffort, onDone }: Props): React.ReactNode 
         time,
         sourceX: rippleSourceX,
         sourceY: RIPPLE_SOURCE_Y,
+        palette: rippleMode,
       });
       const overlayed = applyOverlaysToCells(cells, overlays);
       const faded = fadeCells(overlayed, fade);
       return cellsToSegments(faded);
     },
-    [time, fade, panelWidth, rippleSourceX],
+    [time, fade, panelWidth, rippleSourceX, rippleMode],
   );
 
   return (
@@ -196,14 +208,15 @@ export function EffortPanel({ appStateEffort, onDone }: Props): React.ReactNode 
           segment={segment}
           panelWidth={panelWidth}
           time={time}
+          mode={rippleMode}
         />
       ) : (
-        <>
-          <PlainContent cursor={cursor} segment={segment} panelWidth={panelWidth} />
-          <Box marginTop={1}>
-            <Text color="subtle">←/→ adjust · Enter confirm · Esc cancel</Text>
-          </Box>
-        </>
+        <PlainContent cursor={cursor} segment={segment} panelWidth={panelWidth} />
+      )}
+      {cursor === 'max' && (
+        <Box marginTop={1}>
+          <Text color="warning">{MAX_EFFORT_WARNING}</Text>
+        </Box>
       )}
     </Box>
   );
@@ -226,16 +239,7 @@ function PlainContent({
         <Text color="suggestion">Faster</Text>
         <Text color="suggestion">Smarter</Text>
       </Box>
-      <Text color="subtle">{'─'.repeat(panelWidth)}</Text>
-      <Box flexDirection="row">
-        {PANEL_POSITIONS.map(p => (
-          <Box key={`cursor-${p}`} width={segment} justifyContent="center">
-            <Text bold color={cursor === p ? 'suggestion' : 'subtle'}>
-              {cursor === p ? '▲' : ' '}
-            </Text>
-          </Box>
-        ))}
-      </Box>
+      <TrackRow cursor={cursor} segment={segment} panelWidth={panelWidth} />
       <Box flexDirection="row">
         {PANEL_POSITIONS.map(p => (
           <Box key={`label-${p}`} width={segment} justifyContent="center">
@@ -252,6 +256,29 @@ function PlainContent({
         </Box>
       </Box>
     </>
+  );
+}
+
+function TrackRow({
+  cursor,
+  segment,
+  panelWidth,
+}: {
+  cursor: PanelPosition;
+  segment: number;
+  panelWidth: number;
+}): React.ReactNode {
+  const cursorX = segmentTextStartX(PANEL_POSITIONS.indexOf(cursor), 1, segment);
+  const ultracodeStart = segment * (PANEL_POSITIONS.length - 1);
+  return (
+    <Box flexDirection="row">
+      <Text color="subtle">{'─'.repeat(cursorX)}</Text>
+      <Text bold color="suggestion">
+        ▲
+      </Text>
+      <Text color="subtle">{'─'.repeat(Math.max(0, ultracodeStart - cursorX - 1))}</Text>
+      <Text color={COLOR_ULTRACODE}>┆{'─'.repeat(Math.max(0, panelWidth - ultracodeStart - 1))}</Text>
+    </Box>
   );
 }
 
@@ -277,9 +304,10 @@ type RippleContentProps = {
   segment: number;
   panelWidth: number;
   time: number;
+  mode: RipplePalette;
 };
 
-function RippleContent({ renderRow, cursor, segment, panelWidth, time }: RippleContentProps): React.ReactNode {
+function RippleContent({ renderRow, cursor, segment, panelWidth, time, mode }: RippleContentProps): React.ReactNode {
   // 光标索引跟随 cursor（退出动画期间 cursor 已移到别处，
   // 让 ▲ overlay 跟着移走，ultracode 段恢复普通背景色）。
   const cursorIdx = PANEL_POSITIONS.indexOf(cursor);
@@ -288,10 +316,10 @@ function RippleContent({ renderRow, cursor, segment, panelWidth, time }: RippleC
 
   // 文字颜色跟随波浪色相旋转：取当前 time 的 hueShift，
   // 应用到所有 overlay 颜色，让文字与背景色环保持同步。
-  const hueShift = getHueShiftAtTime(time);
-  const overlayColor = rotateHue(COLOR_OVERLAY, hueShift);
-  const labelSelectedColor = rotateHue(COLOR_LABEL_SELECTED, hueShift);
-  const labelDefaultColor = rotateHue(COLOR_LABEL_DEFAULT, hueShift);
+  const hueShift = mode === 'rainbow' ? getHueShiftAtTime(time) : 0;
+  const overlayColor = mode === 'rainbow' ? rotateHue(COLOR_OVERLAY, hueShift) : COLOR_ULTRACODE;
+  const labelSelectedColor = mode === 'rainbow' ? rotateHue(COLOR_LABEL_SELECTED, hueShift) : COLOR_ULTRACODE;
+  const labelDefaultColor = mode === 'rainbow' ? rotateHue(COLOR_LABEL_DEFAULT, hueShift) : COLOR_LABEL_DEFAULT;
 
   const fasterOverlay: Overlay = { text: 'Faster', x: 0, color: overlayColor };
   const smarterOverlay: Overlay = {
@@ -304,16 +332,33 @@ function RippleContent({ renderRow, cursor, segment, panelWidth, time }: RippleC
     x: 0,
     color: labelDefaultColor,
   };
+  const ultracodeTrackOverlay: Overlay = {
+    text: `┆${'─'.repeat(segment - 1)}`,
+    x: segment * ultracodeIdx,
+    color: COLOR_ULTRACODE,
+  };
   const cursorOverlay: Overlay = {
     text: '▲',
     x: segmentTextStartX(cursorIdx, 1, segment),
     color: overlayColor,
   };
-  const labelOverlays: Overlay[] = PANEL_POSITIONS.map((p, idx) => ({
-    text: p,
-    x: segmentTextStartX(idx, p.length, segment),
-    color: p === cursor ? labelSelectedColor : labelDefaultColor,
-  }));
+  const labelOverlays: Overlay[] = PANEL_POSITIONS.flatMap((p, idx) => {
+    const x = segmentTextStartX(idx, p.length, segment);
+    if (p === 'max' && cursor === 'max') {
+      return [...p].map((char, charIdx) => ({
+        text: char,
+        x: x + charIdx,
+        color: rotateHue(COLOR_LABEL_SELECTED, hueShift + charIdx * 90),
+      }));
+    }
+    return [
+      {
+        text: p,
+        x,
+        color: p === 'ultracode' ? COLOR_ULTRACODE : p === cursor ? labelSelectedColor : labelDefaultColor,
+      },
+    ];
+  });
   const sublabelOverlay: Overlay = {
     text: SUBLABEL_ULTRACODE,
     x: segmentTextStartX(ultracodeIdx, SUBLABEL_ULTRACODE.length, segment),
@@ -332,14 +377,10 @@ function RippleContent({ renderRow, cursor, segment, panelWidth, time }: RippleC
   // 快捷键行：plain Text，不参与波纹渲染（无背景动画），紧贴底部波纹行。
   return (
     <>
-      <RippleRow segments={renderRow(-4, [])} />
-      <RippleRow segments={renderRow(-3, [fasterOverlay, smarterOverlay])} />
-      <RippleRow segments={renderRow(-2, [separatorOverlay])} />
-      <RippleRow segments={renderRow(-1, [cursorOverlay])} />
+      <RippleRow segments={renderRow(-2, [fasterOverlay, smarterOverlay])} />
+      <RippleRow segments={renderRow(-1, [separatorOverlay, ultracodeTrackOverlay, cursorOverlay])} />
       <RippleRow segments={renderRow(0, labelOverlays)} />
       <RippleRow segments={renderRow(1, [sublabelOverlay])} />
-      <RippleRow segments={renderRow(2, [])} />
-      <Text color={COLOR_LABEL_DEFAULT}>←/→ adjust · Enter confirm · Esc cancel</Text>
     </>
   );
 }

@@ -36,7 +36,7 @@ describe('intensityToColor', () => {
 
   test('intensity 单调递增 → 颜色档位递增（至少 3 档）', () => {
     const samples = [0.2, 0.4, 0.6, 0.8, 1.0]
-    const colors = samples.map(intensityToColor)
+    const colors = samples.map(value => intensityToColor(value))
     const unique = new Set(colors)
     expect(unique.size).toBeGreaterThanOrEqual(3)
   })
@@ -66,6 +66,11 @@ describe('intensityToColor', () => {
     const r = parseInt(shifted.slice(1, 3), 16)
     const b = parseInt(shifted.slice(5, 7), 16)
     expect(r).toBeGreaterThan(b)
+  })
+
+  test('purple palette remains purple even when a hue shift is supplied', () => {
+    expect(intensityToColor(1, 0, 'purple')).toBe('#a56bff')
+    expect(intensityToColor(1, 180, 'purple')).toBe('#a56bff')
   })
 })
 
@@ -145,6 +150,27 @@ describe('getHueShiftAtTime', () => {
 })
 
 describe('computeRippleCells', () => {
+  test('purple mode uses only the fixed purple palette', () => {
+    const cells = computeRippleCells({
+      y: 0,
+      width: 30,
+      time: 6000,
+      sourceX: 25,
+      sourceY: 0,
+      palette: 'purple',
+    })
+    const purpleColors = new Set([
+      '#21162f',
+      '#2b1b40',
+      '#3a2458',
+      '#503274',
+      '#68409a',
+      '#8754c7',
+      '#a56bff',
+    ])
+    expect(cells.every(cell => purpleColors.has(cell.color))).toBe(true)
+  })
+
   test('返回数组长度等于 width', () => {
     const cells = computeRippleCells({
       y: 2,

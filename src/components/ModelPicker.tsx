@@ -23,8 +23,6 @@ import {
   modelSupportsEffort,
   modelSupportsMaxEffort,
   modelSupportsXhighEffort,
-  resolvePickerEffortPersistence,
-  toPersistableEffort,
 } from '../utils/effort.js';
 import {
   getDefaultMainLoopModel,
@@ -33,7 +31,6 @@ import {
   parseUserSpecifiedModel,
 } from '../utils/model/model.js';
 import { getModelOptions } from '../utils/model/modelOptions.js';
-import { getSettingsForSource, updateSettingsForSource } from '../utils/settings/settings.js';
 import { ConfigurableShortcutHint } from './ConfigurableShortcutHint.js';
 import { Select } from './CustomSelect/index.js';
 import { Byline, KeyboardShortcutHint, Pane } from '@anthropic/ink';
@@ -49,7 +46,7 @@ export type Props = {
   /** Overrides the dim header line below "Select model". */
   headerText?: string;
   /**
-   * When true, skip writing effortLevel to userSettings on selection.
+   * When true, skip applying an effort selection to the current AppState.
    * Used by the assistant installer wizard where the model choice is
    * project-scoped (written to the assistant's .prism/settings.json via
    * install.ts) and should not leak to the user's global ~/.prism/settings.
@@ -202,23 +199,8 @@ export function ModelPicker({
     logEvent('tengu_model_command_menu_effort', {
       effort: effort as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     });
-    if (!skipSettingsWrite) {
-      // Prior comes from userSettings on disk — NOT merged settings (which
-      // includes project/policy layers that must not leak into the user's
-      // global ~/.prism/settings.json), and NOT AppState.effortValue (which
-      // includes session-ephemeral sources like --effort CLI flag).
-      // See resolvePickerEffortPersistence JSDoc.
-      const effortLevel = resolvePickerEffortPersistence(
-        effort,
-        getDefaultEffortLevelForOption(value),
-        getSettingsForSource('userSettings')?.effortLevel,
-        hasToggledEffort,
-      );
-      const persistable = toPersistableEffort(effortLevel);
-      if (persistable !== undefined) {
-        updateSettingsForSource('userSettings', { effortLevel: persistable });
-      }
-      setAppState(prev => ({ ...prev, effortValue: effortLevel }));
+    if (!skipSettingsWrite && hasToggledEffort) {
+      setAppState(prev => ({ ...prev, effortValue: effort }));
     }
 
     const selectedModel = resolveOptionModel(value);

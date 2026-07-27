@@ -91,6 +91,7 @@ function normalizeSlotModel(model: string): string {
 export function getModelSlotForModel(
   model: string,
   env: Record<string, string | undefined> = process.env,
+  includeFamilyFallback = true,
 ): ModelSlotName | undefined {
   const normalized = normalizeSlotModel(model)
 
@@ -107,6 +108,8 @@ export function getModelSlotForModel(
       return slot
     }
   }
+
+  if (!includeFamilyFallback) return undefined
 
   if (normalized.includes('haiku')) return 'haiku'
   if (normalized.includes('sonnet')) return 'sonnet'

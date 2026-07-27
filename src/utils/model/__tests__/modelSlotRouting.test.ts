@@ -5,6 +5,17 @@ import {
 } from '../modelSlotRouting.js'
 
 describe('model slot routing', () => {
+  test('can restrict matching to explicitly configured slot IDs', () => {
+    expect(getModelSlotForModel('claude-opus-4-5', {}, false)).toBeUndefined()
+    expect(
+      getModelSlotForModel(
+        'vendor/custom-model',
+        { ANTHROPIC_DEFAULT_KIMI_MODEL: 'vendor/custom-model' },
+        false,
+      ),
+    ).toBe('kimi')
+  })
+
   test('matches configured IDs before name heuristics', () => {
     const env = {
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.2',

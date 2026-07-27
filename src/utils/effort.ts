@@ -9,6 +9,7 @@ import { isEnvTruthy } from './envUtils.js'
 import type { EffortLevel } from 'src/entrypoints/sdk/runtimeTypes.js'
 import { resolveAntModel } from './model/antModels.js'
 import { getAntModelOverrideConfig } from './model/antModels.js'
+import { getModelSlotForModel } from './model/modelSlotRouting.js'
 import {
   isChatGPTAuthMode,
   isChatGPTCodexReasoningModel,
@@ -29,6 +30,53 @@ export const EFFORT_LEVELS = [
 ] as const satisfies readonly EffortLevel[]
 
 export type EffortValue = EffortLevel | number
+
+export type SessionEffortCommandResult = {
+  message: string
+  effortUpdate?: { value: EffortValue | undefined }
+}
+
+/**
+ * Compute a /effort change without touching settings.json. Effort changes are
+ * process-local so one running Prism instance can never retune another one.
+ */
+export function computeSessionEffortCommand(
+  args: string,
+): SessionEffortCommandResult {
+  const normalized = args.toLowerCase()
+  if (normalized === 'auto' || normalized === 'unset') {
+    const envOverride = getEffortEnvOverride()
+    if (envOverride !== undefined && envOverride !== null) {
+      return {
+        message: `Effort is auto for this session, but CLAUDE_CODE_EFFORT_LEVEL=${process.env.CLAUDE_CODE_EFFORT_LEVEL} still overrides it`,
+        effortUpdate: { value: undefined },
+      }
+    }
+    return {
+      message: 'Effort level set to auto (this session only)',
+      effortUpdate: { value: undefined },
+    }
+  }
+
+  if (!isEffortLevel(normalized)) {
+    return {
+      message: `Invalid argument: ${args}. Valid options are: low, medium, high, xhigh, max, auto`,
+    }
+  }
+
+  const envOverride = getEffortEnvOverride()
+  if (envOverride !== undefined && envOverride !== normalized) {
+    return {
+      message: `Not applied: CLAUDE_CODE_EFFORT_LEVEL=${process.env.CLAUDE_CODE_EFFORT_LEVEL} overrides effort this session`,
+      effortUpdate: { value: normalized },
+    }
+  }
+
+  return {
+    message: `Set effort level to ${normalized} (this session only): ${getEffortValueDescription(normalized)}`,
+    effortUpdate: { value: normalized },
+  }
+}
 
 // @[MODEL LAUNCH]: Add the new model to the allowlist if it supports the effort parameter.
 export function modelSupportsEffort(model: string): boolean {
@@ -55,8 +103,19 @@ export function modelSupportsEffort(model: string): boolean {
     m.includes('opus-4-6') ||
     m.includes('sonnet-5') ||
     m.includes('sonnet-4-6') ||
-    m.includes('deepseek-v4-pro')
+    m.includes('deepseek-v4-pro') ||
+    m.includes('haiku') ||
+    m.includes('fable') ||
+    m.includes('glm') ||
+    m.includes('grok') ||
+    m.includes('kimi')
   ) {
+    return true
+  }
+  // Prism's named model slots all expose the same effort control in the UI.
+  // Third-party APIs that reject an effort value can still opt out through
+  // *_SUPPORTED_CAPABILITIES, which is checked above.
+  if (getModelSlotForModel(model, process.env, false) !== undefined) {
     return true
   }
   // Exclude any other known legacy models (haiku, older opus/sonnet variants)

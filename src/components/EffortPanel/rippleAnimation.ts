@@ -37,6 +37,19 @@ const RIPPLE_COLOR_STOPS = [
   '#5769F7', // 0.84 ~ 1.00 — suggestion (波峰)
 ] as const
 
+/** Fixed purple palette used by ultracode. It animates the wave phase only. */
+const PURPLE_RIPPLE_COLOR_STOPS = [
+  '#21162f',
+  '#2b1b40',
+  '#3a2458',
+  '#503274',
+  '#68409a',
+  '#8754c7',
+  '#a56bff',
+] as const
+
+export type RipplePalette = 'rainbow' | 'purple'
+
 /**
  * 色相连续旋转速度（度/ms）。
  * 周期 = 360 / 0.03 = 12000ms = 12s，远慢于波纹相位（~1.6s），
@@ -151,14 +164,19 @@ export function getHueShiftAtTime(time: number): number {
  *                 生产代码传 getHueShiftAtTime(time) 实现主色漂移。
  *                 测试代码传 0（默认）获得确定性输出。
  */
-export function intensityToColor(intensity: number, hueShift = 0): string {
+export function intensityToColor(
+  intensity: number,
+  hueShift = 0,
+  palette: RipplePalette = 'rainbow',
+): string {
+  const colorStops =
+    palette === 'purple' ? PURPLE_RIPPLE_COLOR_STOPS : RIPPLE_COLOR_STOPS
   const v = intensity < 0 ? 0 : intensity > 1 ? 1 : intensity
-  const idx = Math.min(
-    RIPPLE_COLOR_STOPS.length - 1,
-    Math.floor(v * RIPPLE_COLOR_STOPS.length),
-  )
-  const base = RIPPLE_COLOR_STOPS[idx]
-  return hueShift === 0 ? base : rotateHue(base, hueShift)
+  const idx = Math.min(colorStops.length - 1, Math.floor(v * colorStops.length))
+  const base = colorStops[idx]
+  return palette === 'purple' || hueShift === 0
+    ? base
+    : rotateHue(base, hueShift)
 }
 
 /**
@@ -236,11 +254,12 @@ export function computeRippleCells(args: {
   time: number
   sourceX: number
   sourceY: number
+  palette?: RipplePalette
 }): Cell[] {
-  const { y, width, time, sourceX, sourceY } = args
+  const { y, width, time, sourceX, sourceY, palette = 'rainbow' } = args
   if (width <= 0) return []
 
-  const hueShift = getHueShiftAtTime(time)
+  const hueShift = palette === 'rainbow' ? getHueShiftAtTime(time) : 0
 
   const cells: Cell[] = new Array(width)
   for (let x = 0; x < width; x++) {
@@ -259,7 +278,7 @@ export function computeRippleCells(args: {
 
     cells[x] = {
       char: RIPPLE_BG_CHAR,
-      color: intensityToColor(intensity, hueShift),
+      color: intensityToColor(intensity, hueShift, palette),
     }
   }
   return cells

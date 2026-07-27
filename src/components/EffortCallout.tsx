@@ -3,14 +3,8 @@ import { Box, Text } from '@anthropic/ink';
 import { isMaxSubscriber, isProSubscriber, isTeamSubscriber } from '../utils/auth.js';
 import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js';
 import type { EffortLevel } from '../utils/effort.js';
-import {
-  convertEffortValueToLevel,
-  getDefaultEffortForModel,
-  getOpusDefaultEffortConfig,
-  toPersistableEffort,
-} from '../utils/effort.js';
+import { getOpusDefaultEffortConfig } from '../utils/effort.js';
 import { parseUserSpecifiedModel } from '../utils/model/model.js';
-import { updateSettingsForSource } from '../utils/settings/settings.js';
 import type { OptionWithDescription } from './CustomSelect/select.js';
 import { Select } from './CustomSelect/select.js';
 import { effortLevelToSymbol } from './EffortIndicator.js';
@@ -48,19 +42,9 @@ export function EffortCallout({ model, onDone }: Props): React.ReactNode {
     return () => clearTimeout(timeoutId);
   }, [handleCancel]);
 
-  const defaultEffort = getDefaultEffortForModel(model);
-  const defaultLevel = defaultEffort ? convertEffortValueToLevel(defaultEffort) : 'high';
-
-  const handleSelect = useCallback(
-    (value: EffortLevel): void => {
-      const effortLevel = value === defaultLevel ? undefined : value;
-      updateSettingsForSource('userSettings', {
-        effortLevel: toPersistableEffort(effortLevel),
-      });
-      onDoneRef.current(value);
-    },
-    [defaultLevel],
-  );
+  const handleSelect = useCallback((value: EffortLevel): void => {
+    onDoneRef.current(value);
+  }, []);
 
   const options: OptionWithDescription<EffortLevel>[] = [
     {
