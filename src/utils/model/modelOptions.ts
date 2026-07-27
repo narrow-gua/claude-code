@@ -27,6 +27,7 @@ import {
   getDefaultFableModel,
   getDefaultGlmModel,
   getDefaultGrokModel,
+  getDefaultKimiModel,
   getDefaultMainLoopModelSetting,
   getMarketingNameForModel,
   getUserSpecifiedModelSetting,
@@ -178,6 +179,17 @@ function getOpus47Option(fastMode = false): ModelOption {
   }
 }
 
+function getOpus5Option(fastMode = false): ModelOption {
+  const is3P = getAPIProvider() !== 'firstParty'
+  return {
+    value: is3P ? getModelStrings().opus50 : 'opus',
+    label: 'Opus 5',
+    description: `Opus 5 · Most capable for complex work · 1M context${getOpusPricingSuffix(fastMode)}`,
+    descriptionForModel:
+      'Opus 5 - most capable for complex work with a 1M context window',
+  }
+}
+
 export function getOpus46Option(fastMode = false): ModelOption {
   // Always use the canonical 4.6 model string (not the 'opus' alias, which
   // resolves via getDefaultOpusModel() to opus47 on firstParty). Users
@@ -291,8 +303,8 @@ function getHaikuOption(): ModelOption {
 function getMaxOpusOption(fastMode = false): ModelOption {
   return {
     value: 'opus',
-    label: 'Opus 4.7',
-    description: `Opus 4.7 · Most capable for complex work${fastMode ? getOpusPricingSuffix(true) : ''}`,
+    label: 'Opus 5',
+    description: `Opus 5 · Most capable for complex work · 1M context${fastMode ? getOpusPricingSuffix(true) : ''}`,
   }
 }
 
@@ -318,11 +330,11 @@ export function getMaxOpus47_1MOption(fastMode = false): ModelOption {
 function getMergedOpus1MOption(fastMode = false): ModelOption {
   const is3P = getAPIProvider() !== 'firstParty'
   return {
-    value: is3P ? getModelStrings().opus47 + '[1m]' : 'opus[1m]',
-    label: 'Opus 4.7 (1M context)',
-    description: `Opus 4.7 with 1M context · Most capable for complex work${!is3P && fastMode ? getOpusPricingSuffix(fastMode) : ''}`,
+    value: is3P ? getModelStrings().opus50 : 'opus',
+    label: 'Opus 5',
+    description: `Opus 5 with 1M context · Most capable for complex work${!is3P && fastMode ? getOpusPricingSuffix(fastMode) : ''}`,
     descriptionForModel:
-      'Opus 4.7 with 1M context - most capable for complex work',
+      'Opus 5 with 1M context - most capable for complex work',
   }
 }
 
@@ -342,7 +354,7 @@ function getOpusPlanOption(): ModelOption {
   return {
     value: 'opusplan',
     label: 'Opus Plan Mode',
-    description: 'Use Opus 4.7 in plan mode, Sonnet 4.6 otherwise',
+    description: 'Use Opus 5 in plan mode, Sonnet 5 otherwise',
   }
 }
 
@@ -462,7 +474,7 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
     payg3pOptions.push(customOpus)
   } else {
     // Add Opus 4.7 1M + Opus 4.6 1M (no redundant non-1M entries)
-    payg3pOptions.push(getOpus47_1MOption(fastMode))
+    payg3pOptions.push(getOpus5Option(fastMode))
     payg3pOptions.push(getOpus46_1MOption(fastMode))
   }
   const customHaiku = getCustomHaikuOption()
@@ -501,7 +513,10 @@ function getModelFamilyInfo(
   }
 
   // Opus family
-  if (canonical.includes('claude-opus-4')) {
+  if (
+    canonical.includes('claude-opus-5') ||
+    canonical.includes('claude-opus-4')
+  ) {
     const currentName = getMarketingNameForModel(getDefaultOpusModel())
     if (currentName) {
       return { alias: 'Opus', currentVersionName: currentName }
@@ -602,6 +617,12 @@ export function getModelOptions(fastMode = false): ModelOption[] {
       label: renderModelName(getDefaultGrokModel()),
       description: `Grok slot (${getDefaultGrokModel()})`,
       descriptionForModel: `${renderModelName(getDefaultGrokModel())} (${getDefaultGrokModel()})`,
+    },
+    {
+      value: 'kimi',
+      label: renderModelName(getDefaultKimiModel()),
+      description: `Kimi slot (${getDefaultKimiModel()})`,
+      descriptionForModel: `${renderModelName(getDefaultKimiModel())} (${getDefaultKimiModel()})`,
     },
   ]
   const options = [defaultOption, ...slotOptions]

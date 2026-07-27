@@ -1,7 +1,7 @@
 import capitalize from 'lodash-es/capitalize.js';
 import * as React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { has1mContext } from '../utils/context.js';
+import { has1mContext, modelAllows1MContextToggle, modelHasDefault1MContext } from '../utils/context.js';
 import { useExitOnCtrlCDWithKeybindings } from 'src/hooks/useExitOnCtrlCDWithKeybindings.js';
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -51,8 +51,8 @@ export type Props = {
   /**
    * When true, skip writing effortLevel to userSettings on selection.
    * Used by the assistant installer wizard where the model choice is
-   * project-scoped (written to the assistant's .claude/settings.json via
-   * install.ts) and should not leak to the user's global ~/.claude/settings.
+   * project-scoped (written to the assistant's .prism/settings.json via
+   * install.ts) and should not leak to the user's global ~/.prism/settings.
    */
   skipSettingsWrite?: boolean;
 };
@@ -87,6 +87,8 @@ export function ModelPicker({
 
   const handleToggle1M = useCallback(() => {
     if (!focusedValue || focusedValue === NO_PREFERENCE) return;
+    const focusedModel = resolveOptionModel(focusedValue);
+    if (!focusedModel || !modelAllows1MContextToggle(focusedModel)) return;
     // Key on the base value so lookups in handleSelect / is1MMarked match the
     // initializer — predefined 1M options arrive with a `[1m]` suffix in
     // `focusedValue`, which would diverge from the base-value key set.
@@ -145,6 +147,7 @@ export function ModelPicker({
 
   const focusedModelName = selectOptions.find(opt => opt.value === focusedValue)?.label;
   const focusedModel = resolveOptionModel(focusedValue);
+  const focusedHasDefault1M = focusedModel ? modelHasDefault1MContext(focusedModel) : false;
   const is1MMarked =
     focusedValue !== undefined &&
     focusedValue !== NO_PREFERENCE &&
@@ -202,7 +205,7 @@ export function ModelPicker({
     if (!skipSettingsWrite) {
       // Prior comes from userSettings on disk — NOT merged settings (which
       // includes project/policy layers that must not leak into the user's
-      // global ~/.claude/settings.json), and NOT AppState.effortValue (which
+      // global ~/.prism/settings.json), and NOT AppState.effortValue (which
       // includes session-ephemeral sources like --effort CLI flag).
       // See resolvePickerEffortPersistence JSDoc.
       const effortLevel = resolvePickerEffortPersistence(
@@ -229,7 +232,9 @@ export function ModelPicker({
     // base form — not `value`, which may carry a `[1m]` suffix from predefined
     // 1M options and would never match.
     const baseValue = value.replace(/\[1m\]/i, '');
-    const wants1M = marked1MValues.has(baseValue);
+    const wants1M = Boolean(
+      selectedModel && modelAllows1MContextToggle(selectedModel) && marked1MValues.has(baseValue),
+    );
     const finalValue = wants1M ? `${baseValue}[1m]` : baseValue;
     onSelect(finalValue, selectedEffort);
   }
@@ -243,7 +248,7 @@ export function ModelPicker({
           </Text>
           <Text dimColor>
             {headerText ??
-              'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context.'}
+              'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context when available.'}
           </Text>
           {sessionModel && (
             <Text dimColor>
@@ -284,7 +289,11 @@ export function ModelPicker({
               {focusedModelName ? ` for ${focusedModelName}` : ''}
             </Text>
           )}
-          {is1MMarked ? (
+          {focusedHasDefault1M ? (
+            <Text dimColor>
+              <EffortLevelIndicator effort={'high'} /> 1M context included
+            </Text>
+          ) : is1MMarked ? (
             <Text dimColor>
               <EffortLevelIndicator effort={'high'} /> 1M context on
               <Text color="subtle"> · Space to toggle</Text>

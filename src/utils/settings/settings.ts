@@ -1,4 +1,5 @@
 import { feature } from 'bun:bundle'
+import { randomUUID } from 'node:crypto'
 import mergeWith from 'lodash-es/mergeWith.js'
 import { dirname, join, resolve } from 'path'
 import { z } from 'zod/v4'
@@ -232,7 +233,7 @@ function parseSettingsFileUncached(path: string): {
 
 /**
  * Get the absolute path to the associated file root for a given settings source
- * (e.g. for $PROJ_DIR/.claude/settings.json, returns $PROJ_DIR)
+ * (e.g. for $PROJ_DIR/.prism/settings.json, returns $PROJ_DIR)
  * @param source The source of the settings
  * @returns The root path of the settings file
  */
@@ -300,9 +301,9 @@ export function getRelativeSettingsFilePathForSource(
 ): string {
   switch (source) {
     case 'projectSettings':
-      return join('.claude', 'settings.json')
+      return join('.prism', 'settings.json')
     case 'localSettings':
-      return join('.claude', 'settings.local.json')
+      return join('.prism', 'settings.local.json')
   }
 }
 
@@ -521,6 +522,64 @@ export function updateSettingsForSource(
   }
 
   return { error: null }
+}
+
+/** Convert legacy inline slot API overrides into reusable named profiles. */
+export function migrateInlineSlotOverridesToProfiles(): {
+  error: Error | null
+  migrated: boolean
+} {
+  const settings = getSettingsForSource('userSettings')
+  const overrides = settings?.modelSlotOverrides
+  if (!overrides) return { error: null, migrated: false }
+
+  const slotLabels = {
+    haiku: 'Haiku',
+    sonnet: 'Sonnet',
+    opus: 'Opus',
+    fable: 'Fable',
+    glm: 'GLM',
+    grok: 'Grok',
+    kimi: 'Kimi',
+  } as const
+  const profiles = { ...(settings.apiProfiles ?? {}) }
+  const slotUpdates: Record<string, unknown> = {}
+  let changed = false
+
+  for (const slot of Object.keys(slotLabels) as Array<
+    keyof typeof slotLabels
+  >) {
+    const current = overrides[slot]
+    if (!current || 'profileId' in current) continue
+    const inlineProfile = {
+      name: `Imported ${slotLabels[slot]} API`,
+      apiMode: current.apiMode,
+      ...(current.baseUrl && { baseUrl: current.baseUrl }),
+      ...(current.authKey && { authKey: current.authKey }),
+    }
+    const matchingId = Object.entries(profiles).find(
+      ([, profile]) =>
+        profile.apiMode === inlineProfile.apiMode &&
+        profile.baseUrl === inlineProfile.baseUrl &&
+        profile.authKey === inlineProfile.authKey,
+    )?.[0]
+    const profileId = matchingId ?? randomUUID()
+    if (!matchingId) profiles[profileId] = inlineProfile
+    slotUpdates[slot] = {
+      profileId,
+      apiMode: undefined,
+      baseUrl: undefined,
+      authKey: undefined,
+    }
+    changed = true
+  }
+
+  if (!changed) return { error: null, migrated: false }
+  const { error } = updateSettingsForSource('userSettings', {
+    apiProfiles: profiles,
+    modelSlotOverrides: slotUpdates,
+  } as unknown as SettingsJson)
+  return { error, migrated: !error }
 }
 
 /**

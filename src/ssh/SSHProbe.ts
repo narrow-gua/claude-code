@@ -32,7 +32,7 @@ export async function probeRemote(
       '-o',
       'ConnectTimeout=10',
       host,
-      'CLAUDE_BIN=$(test -x "$HOME/.local/bin/claude" && echo "$HOME/.local/bin/claude" || command -v claude 2>/dev/null); echo "$CLAUDE_BIN"; $CLAUDE_BIN --version 2>/dev/null; uname -sm; pwd',
+      'PRISM_BIN=$(test -x "$HOME/.local/bin/prism" && echo "$HOME/.local/bin/prism" || command -v prism 2>/dev/null); echo "$PRISM_BIN"; $PRISM_BIN --version 2>/dev/null; uname -sm; pwd',
     ],
     { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
   )

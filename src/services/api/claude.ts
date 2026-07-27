@@ -182,6 +182,7 @@ import { returnValue } from 'src/utils/generators.js'
 import { headlessProfilerCheckpoint } from 'src/utils/headlessProfiler.js'
 import { isMcpInstructionsDeltaEnabled } from 'src/utils/mcpInstructionsDelta.js'
 import { calculateUSDCost } from 'src/utils/modelCost.js'
+import { getCanonicalName } from 'src/utils/model/model.js'
 import { endQueryProfile, queryCheckpoint } from 'src/utils/queryProfiler.js'
 import {
   modelSupportsAdaptiveThinking,
@@ -439,6 +440,7 @@ function configureEffortParams(
   extraBodyParams: Record<string, unknown>,
   betas: string[],
   model: string,
+  thinkingDisabled: boolean,
 ): void {
   if (!modelSupportsEffort(model) || 'effort' in outputConfig) {
     return
@@ -447,8 +449,15 @@ function configureEffortParams(
   if (effortValue === undefined) {
     betas.push(EFFORT_BETA_HEADER)
   } else if (typeof effortValue === 'string') {
-    // Send string effort level as is
-    outputConfig.effort = effortValue as 'high' | 'medium' | 'low' | 'max'
+    // Opus 5 rejects xhigh/max when thinking is disabled. Preserve the
+    // explicit no-thinking choice and cap effort instead of sending a 400.
+    const compatibleEffort =
+      thinkingDisabled &&
+      getCanonicalName(model).includes('claude-opus-5') &&
+      (effortValue === 'xhigh' || effortValue === 'max')
+        ? 'high'
+        : effortValue
+    outputConfig.effort = compatibleEffort as 'high' | 'medium' | 'low' | 'max'
     betas.push(EFFORT_BETA_HEADER)
   } else if (process.env.USER_TYPE === 'ant') {
     // Numeric effort override - ant-only (uses anthropic_internal)
@@ -1659,6 +1668,8 @@ async function* queryModel(
       extraBodyParams,
       betasParams,
       options.model,
+      thinkingConfig.type === 'disabled' ||
+        isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_THINKING),
     )
 
     configureTaskBudgetParams(
@@ -1784,9 +1795,10 @@ async function* queryModel(
 
     // Only send temperature when thinking is disabled — the API requires
     // temperature: 1 when thinking is enabled, which is already the default.
-    const temperature = !hasThinking
-      ? (options.temperatureOverride ?? 1)
-      : undefined
+    const temperature =
+      !hasThinking && !getCanonicalName(options.model).includes('claude-opus-5')
+        ? (options.temperatureOverride ?? 1)
+        : undefined
 
     // Filter out any empty-string beta headers before sending.
     // Constants like CACHE_EDITING_BETA_HEADER or AFK_MODE_BETA_HEADER

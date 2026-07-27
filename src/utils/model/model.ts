@@ -17,11 +17,16 @@ import {
 import {
   has1mContext,
   is1mContextDisabled,
+  modelHasDefault1MContext,
   modelSupports1M,
 } from '../context.js'
 import { isEnvTruthy } from '../envUtils.js'
 import { getModelStrings, resolveOverriddenModel } from './modelStrings.js'
-import { formatModelPricing, getOpus46CostTier } from '../modelCost.js'
+import {
+  formatModelPricing,
+  getOpus46CostTier,
+  getOpus5CostTier,
+} from '../modelCost.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import type { PermissionMode } from '../permissions/PermissionMode.js'
 import { getAPIProvider, isFirstPartyAnthropicBaseUrl } from './providers.js'
@@ -61,7 +66,8 @@ export function isNonCustomOpusModel(model: ModelName): boolean {
     model === getModelStrings().opus41 ||
     model === getModelStrings().opus45 ||
     model === getModelStrings().opus46 ||
-    model === getModelStrings().opus47
+    model === getModelStrings().opus47 ||
+    model === getModelStrings().opus50
   )
 }
 
@@ -140,7 +146,7 @@ export function getDefaultOpusModel(): ModelName {
   }
   // Keep the Opus slot independent from the provider's primary model. A
   // primary GLM/OpenAI model must not silently replace the Opus slot.
-  return 'claude-opus-4-8'
+  return getModelStrings().opus50
 }
 
 // @[MODEL LAUNCH]: Update the default Sonnet model.
@@ -194,7 +200,7 @@ export function getDefaultHaikuModel(): ModelName {
  * they are not used automatically for background-task routing.
  */
 function getAdditionalModelSlot(
-  slot: 'FABLE' | 'GLM' | 'GROK',
+  slot: 'FABLE' | 'GLM' | 'GROK' | 'KIMI',
   fallback: string,
 ): ModelName {
   const provider = getAPIProvider()
@@ -219,6 +225,10 @@ export function getDefaultGlmModel(): ModelName {
 
 export function getDefaultGrokModel(): ModelName {
   return getAdditionalModelSlot('GROK', 'grok-4.5')
+}
+
+export function getDefaultKimiModel(): ModelName {
+  return getAdditionalModelSlot('KIMI', 'kimi-k3')
 }
 
 /**
@@ -270,12 +280,20 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
 
   // Max users get Opus as default
   if (isMaxSubscriber()) {
-    return getDefaultOpusModel() + (isOpus1mMergeEnabled() ? '[1m]' : '')
+    const model = getDefaultOpusModel()
+    return (
+      model +
+      (!modelHasDefault1MContext(model) && isOpus1mMergeEnabled() ? '[1m]' : '')
+    )
   }
 
   // Team Premium gets Opus (same as Max)
   if (isTeamPremiumSubscriber()) {
-    return getDefaultOpusModel() + (isOpus1mMergeEnabled() ? '[1m]' : '')
+    const model = getDefaultOpusModel()
+    return (
+      model +
+      (!modelHasDefault1MContext(model) && isOpus1mMergeEnabled() ? '[1m]' : '')
+    )
   }
 
   // PAYG (1P and 3P), Enterprise, Team Standard, and Pro get Sonnet as default
@@ -302,6 +320,9 @@ export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   name = name.toLowerCase()
   // Special cases for Claude 4+ models to differentiate versions
   // Order matters: check more specific versions first (4-5 before 4)
+  if (name.includes('claude-opus-5')) {
+    return 'claude-opus-5'
+  }
   if (name.includes('claude-opus-4-7')) {
     return 'claude-opus-4-7'
   }
@@ -374,10 +395,7 @@ export function getClaudeAiUserDefaultModelDescription(
   fastMode = false,
 ): string {
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
-    if (isOpus1mMergeEnabled()) {
-      return `Opus 4.7 with 1M context · Most capable for complex work${fastMode ? getOpusPricingSuffix(true) : ''}`
-    }
-    return `Opus 4.7 · Most capable for complex work${fastMode ? getOpusPricingSuffix(true) : ''}`
+    return `Opus 5 with 1M context · Most capable for complex work${fastMode ? getOpusPricingSuffix(true) : ''}`
   }
   return 'Sonnet 4.6 · Best for everyday tasks'
 }
@@ -386,14 +404,18 @@ export function renderDefaultModelSetting(
   setting: ModelName | ModelAlias,
 ): string {
   if (setting === 'opusplan') {
-    return 'Opus 4.7 in plan mode, else Sonnet 4.6'
+    return 'Opus 5 in plan mode, else Sonnet 5'
   }
   return renderModelName(parseUserSpecifiedModel(setting))
 }
 
 export function getOpusPricingSuffix(fastMode: boolean): string {
   if (getAPIProvider() !== 'firstParty') return ''
-  const pricing = formatModelPricing(getOpus46CostTier(fastMode))
+  const pricing = formatModelPricing(
+    getCanonicalName(getDefaultOpusModel()).includes('claude-opus-5')
+      ? getOpus5CostTier(fastMode)
+      : getOpus46CostTier(fastMode),
+  )
   const fastModeIndicator = fastMode ? ` (${LIGHTNING_BOLT})` : ''
   return ` ·${fastModeIndicator} ${pricing}`
 }
@@ -436,6 +458,9 @@ export function renderModelSetting(setting: ModelName | ModelAlias): string {
  */
 export function getPublicModelDisplayName(model: ModelName): string | null {
   switch (model) {
+    case getModelStrings().opus50:
+    case getModelStrings().opus50 + '[1m]':
+      return 'Claude Opus 5'
     case 'claude-opus-4-8':
       return 'Claude Opus 4.8'
     case 'claude-sonnet-5':
@@ -446,6 +471,8 @@ export function getPublicModelDisplayName(model: ModelName): string | null {
       return 'GLM 5.2'
     case 'grok-4.5':
       return 'Grok 4.5'
+    case 'kimi-k3':
+      return 'Kimi K3'
     case getModelStrings().opus47:
       return 'Opus 4.7'
     case getModelStrings().opus47 + '[1m]':
@@ -569,6 +596,8 @@ export function parseUserSpecifiedModel(
         return getDefaultGlmModel() + (has1mTag ? '[1m]' : '')
       case 'grok':
         return getDefaultGrokModel() + (has1mTag ? '[1m]' : '')
+      case 'kimi':
+        return getDefaultKimiModel() + (has1mTag ? '[1m]' : '')
       case 'opus':
         return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
       case 'best':
@@ -685,6 +714,9 @@ export function getMarketingNameForModel(modelId: string): string | undefined {
   const has1m = modelId.toLowerCase().includes('[1m]')
   const canonical = getCanonicalName(modelId)
 
+  if (canonical.includes('claude-opus-5')) {
+    return 'Opus 5 (with 1M context)'
+  }
   if (canonical.includes('claude-opus-4-7')) {
     return has1m ? 'Opus 4.7 (with 1M context)' : 'Opus 4.7'
   }

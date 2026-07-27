@@ -18,6 +18,7 @@ describe('isModelAlias', () => {
     expect(isModelAlias('fable')).toBe(true)
     expect(isModelAlias('glm')).toBe(true)
     expect(isModelAlias('grok')).toBe(true)
+    expect(isModelAlias('kimi')).toBe(true)
   })
 
   test('returns true for "best"', () => {

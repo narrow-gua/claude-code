@@ -166,7 +166,7 @@ export async function connectDoubaoStream(
 
   // Start the ASR session in the background
   const config = new ASRConfig({
-    credentialPath: `${homedir()}/.claude/tts/doubao/credentials.json`,
+    credentialPath: `${homedir()}/.prism/tts/doubao/credentials.json`,
   })
 
   // Ensure credentials are initialized (may auto-generate)

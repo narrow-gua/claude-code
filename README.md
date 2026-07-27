@@ -160,13 +160,14 @@ bun run build
 | Opus Model   | 高性能模型 ID | `claude-opus-4-8`            |
 | Fable Model  | Fable 模型 ID | `claude-fable-5`             |
 | GLM Model    | GLM 模型 ID   | `glm-5.2`                    |
+| Kimi Model   | Kimi 模型 ID  | `kimi-k3`                    |
 
 - ⌨️ **Tab / Shift+Tab** 切换字段，**Enter** 确认并跳到下一个，最后一个字段按 Enter 保存
 
 > ℹ️ 支持所有 Anthropic API 兼容服务（如 OpenRouter、AWS Bedrock 代理等），只要接口兼容 Messages API 即可。
-> Fable 和 GLM 是额外可选槽位，可通过 `/model fable`、`/model glm` 切换；留空则不覆盖服务端默认配置。
+> Fable、GLM、Grok 和 Kimi 是额外可选槽位，可通过 `/model fable`、`/model glm`、`/model grok`、`/model kimi` 切换；留空则不覆盖服务端默认配置。
 
-每个模型槽位还可以单独复写 API 路由。在 `/login` 中选择 **Model slot API overrides**，依次选择槽位和 API 模式（继承全局、Anthropic、OpenAI 或 Gemini），然后可选填写该槽位专属的 Base URL 与 Auth Key。留空的 URL/Key 会继承全局配置；选择 `inherit` 且两项均留空会清除该槽位复写。
+每个模型槽位还可以绑定独立的 API Profile。在 `/login` 中选择 **API profiles & model slots**，可以保存、修改、删除 Profile，并将任意槽位切换到指定 Profile。也可以使用 `/api use kimi <Profile 名称或 ID>` 快速切换 Kimi，或使用 `/api use kimi inherit` 恢复继承全局 API。
 
 > 🔐 槽位 Auth Key 与其他 `/login` 密钥一样保存在用户 settings 中，请确保配置文件权限安全。
 
@@ -219,7 +220,7 @@ TUI (REPL) 模式需要真实终端，无法直接通过 VS Code launch 启动�
 
 ### 学习记录
 
-学习进度保存在 `.claude/skills/teach-me/` 目录下，支持跨主题学习者档案。
+学习进度保存在 `.prism/skills/teach-me/` 目录下，支持跨主题学习者档案。
 
 ## 相关文档及网站
 

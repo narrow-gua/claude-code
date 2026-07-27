@@ -67,23 +67,23 @@ describe('getDefaultOpusModel', () => {
     resetProviderState()
   })
 
-  test('returns Opus 4.8 for firstParty', () => {
-    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
+  test('returns Opus 5 for firstParty', () => {
+    expect(getDefaultOpusModel()).toBe('claude-opus-5')
   })
 
-  test('returns Opus 4.8 for bedrock', () => {
+  test('returns the provider-specific Opus 5 ID for bedrock', () => {
     process.env.CLAUDE_CODE_USE_BEDROCK = '1'
-    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
+    expect(getDefaultOpusModel()).toBe('anthropic.claude-opus-5')
   })
 
-  test('returns Opus 4.8 for vertex', () => {
+  test('returns Opus 5 for vertex', () => {
     process.env.CLAUDE_CODE_USE_VERTEX = '1'
-    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
+    expect(getDefaultOpusModel()).toBe('claude-opus-5')
   })
 
-  test('returns Opus 4.8 for foundry', () => {
+  test('returns Opus 5 for foundry', () => {
     process.env.CLAUDE_CODE_USE_FOUNDRY = '1'
-    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
+    expect(getDefaultOpusModel()).toBe('claude-opus-5')
   })
 
   test('honors ANTHROPIC_DEFAULT_OPUS_MODEL env override (any provider)', () => {
@@ -102,7 +102,7 @@ describe('getDefaultOpusModel', () => {
     process.env.CLAUDE_CODE_USE_OPENAI = '1'
     process.env.OPENAI_MODEL = 'glm-5.2'
 
-    expect(getDefaultOpusModel()).toBe('claude-opus-4-8')
+    expect(getDefaultOpusModel()).toBe('claude-opus-5')
     expect(getDefaultSonnetModel()).toBe('claude-sonnet-5')
   })
 })
@@ -131,16 +131,18 @@ describe('custom model slot picker', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key'
     const options = getModelOptions()
 
-    expect(options.slice(0, 6).map(option => option.value)).toEqual([
+    expect(options.slice(0, 8).map(option => option.value)).toEqual([
       null,
       'opus',
       'sonnet',
       'haiku',
       'fable',
       'glm',
+      'grok',
+      'kimi',
     ])
     expect(options.find(option => option.value === 'opus')?.label).toBe(
-      'Claude Opus 4.8',
+      'Claude Opus 5',
     )
     expect(options.find(option => option.value === 'sonnet')?.label).toBe(
       'Claude Sonnet 5',
@@ -167,6 +169,8 @@ describe('custom model slot picker', () => {
       'haiku',
       'fable',
       'glm',
+      'grok',
+      'kimi',
     ])
     expect(options.some(option => option.label.includes('Opus 4.7'))).toBe(
       false,

@@ -51,9 +51,11 @@ type AdvisorConfig = {
 }
 
 function getAdvisorConfig(): AdvisorConfig {
-  return getFeatureValue_CACHED_MAY_BE_STALE<AdvisorConfig>(
-    'tengu_sage_compass',
-    {},
+  return (
+    getFeatureValue_CACHED_MAY_BE_STALE<AdvisorConfig | null>(
+      'tengu_sage_compass',
+      {},
+    ) ?? {}
   )
 }
 
@@ -89,6 +91,7 @@ export function getExperimentAdvisorModels():
 export function modelSupportsAdvisor(model: string): boolean {
   const m = model.toLowerCase()
   return (
+    m.includes('opus-5') ||
     m.includes('opus-4-7') ||
     m.includes('opus-4-6') ||
     m.includes('sonnet-4-6') ||
@@ -100,6 +103,7 @@ export function modelSupportsAdvisor(model: string): boolean {
 export function isValidAdvisorModel(model: string): boolean {
   const m = model.toLowerCase()
   return (
+    m.includes('opus-5') ||
     m.includes('opus-4-7') ||
     m.includes('opus-4-6') ||
     m.includes('sonnet-4-6') ||

@@ -7,6 +7,7 @@ import {
   type ResolvedModelSlotApiOverride,
 } from './modelSlotRouting.js'
 export {
+  type ApiProfileValue,
   getModelSlotForModel,
   type ModelSlotApiMode,
   type ModelSlotName,
@@ -26,13 +27,15 @@ export function getModelSlotApiOverride(
   model: string,
   settings: Pick<
     SettingsJson,
-    'modelType' | 'modelSlotOverrides'
+    'apiProfiles' | 'modelType' | 'modelSlotOverrides'
   > = getInitialSettings(),
 ): ResolvedModelSlotApiOverride | undefined {
   return resolveModelSlotApiOverride(
     model,
     settings.modelSlotOverrides,
     getAPIProvider(settings),
+    process.env,
+    settings.apiProfiles,
   )
 }
 
@@ -40,7 +43,7 @@ export function getAPIProviderForModel(
   model: string,
   settings: Pick<
     SettingsJson,
-    'modelType' | 'modelSlotOverrides'
+    'apiProfiles' | 'modelType' | 'modelSlotOverrides'
   > = getInitialSettings(),
 ): APIProvider {
   return (

@@ -44,6 +44,12 @@ describe('COST_TIER constant values', () => {
     )
   })
 
+  test('COST_TIER_10_50: $10/$50 (Fast Opus 5)', () => {
+    expect(formatModelPricing({ inputTokens: 10, outputTokens: 50 })).toBe(
+      '$10/$50 per Mtok',
+    )
+  })
+
   test('COST_HAIKU_35: $0.80/$4 (Haiku 3.5)', () => {
     expect(formatModelPricing({ inputTokens: 0.8, outputTokens: 4 })).toBe(
       '$0.80/$4 per Mtok',

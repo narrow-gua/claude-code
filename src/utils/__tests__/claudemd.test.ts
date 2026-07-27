@@ -86,8 +86,8 @@ describe('isMemoryFilePath', () => {
     expect(isMemoryFilePath('/project/CLAUDE.local.md')).toBe(true)
   })
 
-  test('returns true for .claude/rules/ path', () => {
-    expect(isMemoryFilePath('/project/.claude/rules/foo.md')).toBe(true)
+  test('returns true for .prism/rules/ path', () => {
+    expect(isMemoryFilePath('/project/.prism/rules/foo.md')).toBe(true)
   })
 
   test('returns false for regular file', () => {
@@ -98,16 +98,16 @@ describe('isMemoryFilePath', () => {
     expect(isMemoryFilePath('/project/README.md')).toBe(false)
   })
 
-  test('returns false for .claude directory non-rules file', () => {
-    expect(isMemoryFilePath('/project/.claude/settings.json')).toBe(false)
+  test('returns false for .prism directory non-rules file', () => {
+    expect(isMemoryFilePath('/project/.prism/settings.json')).toBe(false)
   })
 
   test('returns false for lowercase claude.md (case-sensitive match)', () => {
     expect(isMemoryFilePath('/project/claude.md')).toBe(false)
   })
 
-  test('returns false for non-.md file in .claude/rules/', () => {
-    expect(isMemoryFilePath('.claude/rules/foo.txt')).toBe(false)
+  test('returns false for non-.md file in .prism/rules/', () => {
+    expect(isMemoryFilePath('.prism/rules/foo.txt')).toBe(false)
   })
 })
 

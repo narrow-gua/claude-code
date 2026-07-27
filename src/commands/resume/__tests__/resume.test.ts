@@ -8,7 +8,7 @@ import { describe, expect, test } from 'bun:test'
 describe('ModelPicker subtitle', () => {
   test('subtitle mentions effort and context controls', () => {
     const subtitle =
-      'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context.'
+      'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context when available.'
     expect(subtitle).toContain('effort')
     expect(subtitle).toContain('1M context')
     expect(subtitle).toContain('sessions')
@@ -16,7 +16,7 @@ describe('ModelPicker subtitle', () => {
 
   test('subtitle is under 120 characters', () => {
     const subtitle =
-      'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context.'
+      'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context when available.'
     expect(subtitle.length).toBeLessThan(120)
   })
 })

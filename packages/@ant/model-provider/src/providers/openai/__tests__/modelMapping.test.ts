@@ -58,6 +58,10 @@ describe('resolveOpenAIModel', () => {
     expect(resolveOpenAIModel('claude-opus-4-6')).toBe('o3')
   })
 
+  test('maps Opus 5 through the Opus compatibility slot', () => {
+    expect(resolveOpenAIModel('claude-opus-5')).toBe('o3')
+  })
+
   test('passes through unknown model name', () => {
     expect(resolveOpenAIModel('some-random-model')).toBe('some-random-model')
   })

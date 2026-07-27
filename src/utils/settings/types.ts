@@ -33,12 +33,24 @@ export const EnvironmentVariablesSchema = lazySchema(() =>
   z.record(z.string(), z.coerce.string()),
 )
 
-export const ModelSlotApiOverrideSchema = lazySchema(() =>
+export const ApiProfileSchema = lazySchema(() =>
   z.object({
+    name: z.string().min(1),
     apiMode: z.enum(['inherit', 'anthropic', 'openai', 'gemini']),
     baseUrl: z.string().optional(),
     authKey: z.string().optional(),
   }),
+)
+
+export const ModelSlotApiOverrideSchema = lazySchema(() =>
+  z.union([
+    z.object({ profileId: z.string().min(1) }),
+    z.object({
+      apiMode: z.enum(['inherit', 'anthropic', 'openai', 'gemini']),
+      baseUrl: z.string().optional(),
+      authKey: z.string().optional(),
+    }),
+  ]),
 )
 
 /**
@@ -212,7 +224,7 @@ export const DeniedMcpServerEntrySchema = lazySchema(() =>
  *
  * ⚠️ BACKWARD COMPATIBILITY NOTICE ⚠️
  *
- * This schema defines the structure of user settings files (.claude/settings.json).
+ * This schema defines the structure of user settings files (.prism/settings.json).
  * We support backward-compatible changes! Here's how:
  *
  * ✅ ALLOWED CHANGES:
@@ -384,6 +396,12 @@ export const SettingsSchema = lazySchema(() =>
         .string()
         .optional()
         .describe('Override the default model used by Claude Code'),
+      apiProfiles: z
+        .record(z.string(), ApiProfileSchema())
+        .optional()
+        .describe(
+          'Named API connection profiles. Profiles can be assigned to model slots for fast switching without duplicating credentials.',
+        ),
       modelSlotOverrides: z
         .object({
           haiku: ModelSlotApiOverrideSchema().optional(),
@@ -392,10 +410,11 @@ export const SettingsSchema = lazySchema(() =>
           fable: ModelSlotApiOverrideSchema().optional(),
           glm: ModelSlotApiOverrideSchema().optional(),
           grok: ModelSlotApiOverrideSchema().optional(),
+          kimi: ModelSlotApiOverrideSchema().optional(),
         })
         .optional()
         .describe(
-          'Per-model-slot API routing overrides. Each slot may override the API protocol, base URL, and authentication key.',
+          'Per-model-slot API routing overrides. A slot may reference a named API profile or use the legacy inline protocol, base URL, and authentication key.',
         ),
       // Enterprise allowlist of models
       availableModels: z
@@ -562,7 +581,7 @@ export const SettingsSchema = lazySchema(() =>
         .describe(
           'When set in managed settings, blocks non-plugin customization sources for the listed surfaces. ' +
             'Array form locks specific surfaces (e.g. ["skills", "hooks"]); `true` locks all four; `false` is an explicit no-op. ' +
-            'Blocked: ~/.claude/{surface}/, .claude/{surface}/ (project), settings.json hooks, .mcp.json. ' +
+            'Blocked: ~/.prism/{surface}/, .prism/{surface}/ (project), settings.json hooks, .mcp.json. ' +
             'NOT blocked: managed (policySettings) sources, plugin-provided customizations. ' +
             'Composes with strictKnownMarketplaces for end-to-end admin control — plugins gated by ' +
             'marketplace allowlist, everything else blocked here.',
@@ -626,7 +645,7 @@ export const SettingsSchema = lazySchema(() =>
         })
         .optional()
         .describe(
-          'Additional marketplaces to make available for this repository. Typically used in repository .claude/settings.json to ensure team members have required plugin sources.',
+          'Additional marketplaces to make available for this repository. Typically used in repository .prism/settings.json to ensure team members have required plugin sources.',
         ),
       // Enterprise strict list of allowed marketplace sources (policy settings only)
       // When set, ONLY these exact sources can be added. Check happens BEFORE download.
@@ -910,7 +929,7 @@ export const SettingsSchema = lazySchema(() =>
         .optional()
         .describe(
           'Custom directory for plan files, relative to project root. ' +
-            'If not set, defaults to ~/.claude/plans/',
+            'If not set, defaults to ~/.prism/plans/',
         ),
       ...(process.env.USER_TYPE === 'ant'
         ? {
@@ -1035,7 +1054,7 @@ export const SettingsSchema = lazySchema(() =>
         .string()
         .optional()
         .describe(
-          'Custom directory path for auto-memory storage. Supports ~/ prefix for home directory expansion. Ignored if set in projectSettings (checked-in .claude/settings.json) for security. When unset, defaults to ~/.claude/projects/<sanitized-cwd>/memory/.',
+          'Custom directory path for auto-memory storage. Supports ~/ prefix for home directory expansion. Ignored if set in projectSettings (checked-in .prism/settings.json) for security. When unset, defaults to ~/.prism/projects/<sanitized-cwd>/memory/.',
         ),
       autoDreamEnabled: z
         .boolean()
@@ -1147,7 +1166,7 @@ export const SettingsSchema = lazySchema(() =>
           'Glob patterns or absolute paths of CLAUDE.md files to exclude from loading. ' +
             'Patterns are matched against absolute file paths using picomatch. ' +
             'Only applies to User, Project, and Local memory types (Managed/policy files cannot be excluded). ' +
-            'Examples: "/home/user/monorepo/CLAUDE.md", "**/code/CLAUDE.md", "**/some-dir/.claude/rules/**"',
+            'Examples: "/home/user/monorepo/CLAUDE.md", "**/code/CLAUDE.md", "**/some-dir/.prism/rules/**"',
         ),
       cacheThreshold: z
         .number()
@@ -1176,7 +1195,7 @@ export const SettingsSchema = lazySchema(() =>
       /**
        * Workspace API key stored in settings.json for /login UI convenience.
        *
-       * ⚠️ SECURITY NOTICE: stored in plaintext in ~/.claude.json — ensure this
+       * ⚠️ SECURITY NOTICE: stored in plaintext in ~/.prism.json — ensure this
        * file is gitignored and has restricted permissions (chmod 600 on POSIX).
        * Use ANTHROPIC_API_KEY env var in CI/CD or shared environments instead.
        *

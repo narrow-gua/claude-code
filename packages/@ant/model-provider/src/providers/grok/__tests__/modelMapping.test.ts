@@ -28,6 +28,10 @@ describe('resolveGrokModel', () => {
     expect(resolveGrokModel('claude-opus-4-6')).toBe('grok-4.20-reasoning')
   })
 
+  test('maps Opus 5 to the configured Opus-family default', () => {
+    expect(resolveGrokModel('claude-opus-5')).toBe('grok-4.20-reasoning')
+  })
+
   test('maps sonnet models to grok-3-mini-fast', () => {
     expect(resolveGrokModel('claude-sonnet-4-6')).toBe('grok-3-mini-fast')
   })

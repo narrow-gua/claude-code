@@ -1,5 +1,6 @@
 import { checkOpus1mAccess, checkSonnet1mAccess } from './check1mAccess.js'
-import { getUserSpecifiedModelSetting } from './model.js'
+import { modelHasDefault1MContext } from '../context.js'
+import { getDefaultOpusModel, getUserSpecifiedModelSetting } from './model.js'
 
 // @[MODEL LAUNCH]: Add a branch for the new model if it supports a 1M context upgrade path.
 /**
@@ -12,7 +13,11 @@ function getAvailableUpgrade(): {
   multiplier: number
 } | null {
   const currentModelSetting = getUserSpecifiedModelSetting()
-  if (currentModelSetting === 'opus' && checkOpus1mAccess()) {
+  if (
+    currentModelSetting === 'opus' &&
+    !modelHasDefault1MContext(getDefaultOpusModel()) &&
+    checkOpus1mAccess()
+  ) {
     return {
       alias: 'opus[1m]',
       name: 'Opus 1M',

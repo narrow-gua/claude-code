@@ -15,7 +15,7 @@ export async function rollback(
   if (options?.list) {
     console.log('Recent versions:')
     console.log('  (version listing requires access to the release registry)')
-    console.log('  Use `claude update --list` for available versions.')
+    console.log('  Use `prism update --list` for available versions.')
     return
   }
 

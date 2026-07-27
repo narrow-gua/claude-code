@@ -5,6 +5,7 @@ export const MODEL_ALIASES = [
   'fable',
   'glm',
   'grok',
+  'kimi',
   'best',
   'sonnet[1m]',
   'opus[1m]',

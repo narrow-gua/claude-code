@@ -23,7 +23,7 @@ export async function waitForUrlEvent(
  * 1. CLAUDE_CODE_URL_EVENT — set by the OS URL scheme handler on activation
  * 2. CLAUDE_CODE_DEEP_LINK_URL — set by the desktop app launcher
  * 3. CLAUDE_CODE_URL — legacy / manual override
- * 4. CLI arguments — e.g. `claude claude://...`
+ * 4. CLI arguments — e.g. `prism prism-cli://...`
  */
 function findUrlEvent(): string | null {
   for (const key of [
@@ -45,6 +45,6 @@ function isClaudeUrl(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     value.length <= MAX_URL_LENGTH &&
-    (value.startsWith('claude-cli://') || value.startsWith('claude://'))
+    value.startsWith('prism-cli://')
   )
 }

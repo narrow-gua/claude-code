@@ -694,7 +694,7 @@ function initializeEntrypoint(isNonInteractive: boolean): void {
   process.env.CLAUDE_CODE_ENTRYPOINT = isNonInteractive ? 'sdk-cli' : 'cli';
 }
 
-// Set by early argv processing when `claude open <url>` is detected (interactive mode only)
+// Set by early argv processing when `prism open <url>` is detected (interactive mode only)
 type PendingConnect = {
   url: string | undefined;
   authToken: string | undefined;
@@ -826,7 +826,7 @@ export async function main() {
     // URL arrives via Apple Event (not argv). LaunchServices overwrites
     // __CFBundleIdentifier to the launching bundle's ID, which is a precise
     // positive signal — cheaper than importing and guessing with heuristics.
-    if (process.platform === 'darwin' && process.env.__CFBundleIdentifier === 'com.anthropic.claude-code-url-handler') {
+    if (process.platform === 'darwin' && process.env.__CFBundleIdentifier === 'com.prism.cli-url-handler') {
       const { enableConfigs } = await import('./utils/config.js');
       enableConfigs();
       const { handleUrlSchemeLaunch } = await import('./utils/deepLink/protocolHandler.js');
@@ -838,7 +838,7 @@ export async function main() {
   // `claude assistant [sessionId]` — stash and strip so the main
   // command handles it, giving the full interactive TUI. Position-0 only
   // (matching the ssh pattern below) — indexOf would false-positive on
-  // `claude -p "explain assistant"`. Root-flag-before-subcommand
+  // `prism -p "explain assistant"`. Root-flag-before-subcommand
   // (e.g. `--debug assistant`) falls through to the stub, which
   // prints usage.
   if (feature('KAIROS') && _pendingAssistantChat) {
@@ -893,7 +893,7 @@ export async function main() {
       }
       // Forward session-resume + model flags to the remote CLI's initial spawn.
       // --continue/-c and --resume <uuid> operate on the REMOTE session history
-      // (which persists under the remote's ~/.claude/projects/<cwd>/).
+      // (which persists under the remote's ~/.prism/projects/<cwd>/).
       // --model controls which model the remote uses.
       const extractFlag = (flag: string, opts: { hasValue?: boolean; as?: string } = {}) => {
         const i = rawCliArgs.indexOf(flag);
@@ -1011,7 +1011,7 @@ export async function main() {
     setQuestionPreviewFormat('markdown');
   }
 
-  // Tag sessions created via `claude remote-control` so the backend can identify them
+  // Tag sessions created via `prism remote-control` so the backend can identify them
   if (process.env.CLAUDE_CODE_ENVIRONMENT_KIND === 'bridge') {
     setSessionSource('remote-control');
   }
@@ -1100,7 +1100,7 @@ async function run(): Promise<CommanderCommand> {
     // terminal shell integration may mirror the process name to the tab.
     // After init() so settings.json env can also gate this (gh-4765).
     if (!isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE)) {
-      process.title = 'claude';
+      process.title = 'prism';
     }
 
     // Attach logging sinks so subcommand handlers can use logEvent/logError.
@@ -1148,7 +1148,7 @@ async function run(): Promise<CommanderCommand> {
   });
 
   program
-    .name('claude')
+    .name('prism')
     .description(`Claude Code - starts an interactive session by default, use -p/--print for non-interactive output`)
     .argument('[prompt]', 'Your prompt', String)
     // Subcommands inherit helpOption via commander's copyInheritedSettings —
@@ -1369,13 +1369,13 @@ async function run(): Promise<CommanderCommand> {
     // @[MODEL LAUNCH]: Update the example model ID in the --model help text.
     .option(
       '--model <model>',
-      `Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-6').`,
+      `Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-opus-5').`,
     )
     .addOption(
-      new Option('--effort <level>', `Effort level for the current session (low, medium, high, max)`).argParser(
+      new Option('--effort <level>', `Effort level for the current session (low, medium, high, xhigh, max)`).argParser(
         (rawValue: string) => {
           const value = rawValue.toLowerCase();
-          const allowed = ['low', 'medium', 'high', 'max'];
+          const allowed = ['low', 'medium', 'high', 'xhigh', 'max'];
           if (!allowed.includes(value)) {
             throw new InvalidArgumentError(`It must be one of: ${allowed.join(', ')}`);
           }
@@ -1414,7 +1414,7 @@ async function run(): Promise<CommanderCommand> {
     )
     .option('--setting-sources <sources>', 'Comma-separated list of setting sources to load (user, project, local).')
     // gh-33508: <paths...> (variadic) consumed everything until the next
-    // --flag. `claude --plugin-dir /path mcp add --transport http` swallowed
+    // --flag. `prism --plugin-dir /path mcp add --transport http` swallowed
     // `mcp` and `add` as paths, then choked on --transport as an unknown
     // top-level option. Single-value + collect accumulator means each
     // --plugin-dir takes exactly one arg; repeat the flag for multiple dirs.
@@ -1453,7 +1453,7 @@ async function run(): Promise<CommanderCommand> {
         logEvent('tengu_single_word_prompt', { length: prompt.length });
       }
 
-      // Assistant mode: when .claude/settings.json has assistant: true AND
+      // Assistant mode: when .prism/settings.json has assistant: true AND
       // the tengu_kairos GrowthBook gate is on, force brief on. Permission
       // mode is left to the user — settings defaultMode or --permission-mode
       // apply as normal. REPL-typed messages already default to 'next'
@@ -1463,10 +1463,10 @@ async function run(): Promise<CommanderCommand> {
       // kairosEnabled is computed once here and reused at the
       // getAssistantSystemPromptAddendum() call site further down.
       //
-      // Trust gate: .claude/settings.json is attacker-controllable in an
+      // Trust gate: .prism/settings.json is attacker-controllable in an
       // untrusted clone. We run ~1000 lines before showSetupScreens() shows
       // the trust dialog, and by then we've already appended
-      // .claude/agents/assistant.md to the system prompt. Refuse to activate
+      // .prism/agents/assistant.md to the system prompt. Refuse to activate
       // until the directory has been explicitly trusted.
       let kairosEnabled = false;
       let assistantTeamContext:
@@ -2432,7 +2432,7 @@ async function run(): Promise<CommanderCommand> {
 
       if (getIsNonInteractiveSession()) {
         // Apply full merged settings env now (including project-scoped
-        // .claude/settings.json PATH/GIT_DIR/GIT_WORK_TREE) so gitExe() and
+        // .prism/settings.json PATH/GIT_DIR/GIT_WORK_TREE) so gitExe() and
         // the git spawn below see it. Trust is implicit in -p mode; the
         // docstring at managedEnv.ts:96-97 says this applies "potentially
         // dangerous environment variables such as LD_PRELOAD, PATH" from all
@@ -3071,9 +3071,9 @@ async function run(): Promise<CommanderCommand> {
 
       logManagedSettings();
 
-      // Register PID file for concurrent-session detection (~/.claude/sessions/)
+      // Register PID file for concurrent-session detection (~/.prism/sessions/)
       // and fire multi-clauding telemetry. Lives here (not init.ts) so only the
-      // REPL path registers — not subcommands like `claude doctor`. Chained:
+      // REPL path registers — not subcommands like `prism doctor`. Chained:
       // count must run after register's write completes or it misses our own file.
       void registerSession().then(registered => {
         if (!registered) return;
@@ -3735,7 +3735,7 @@ async function run(): Promise<CommanderCommand> {
           process.exit(1);
         }
       } else if (feature('DIRECT_CONNECT') && _pendingConnect?.url) {
-        // `claude connect <url>` — full interactive TUI connected to a remote server
+        // `prism connect <url>` — full interactive TUI connected to a remote server
         let directConnectConfig;
         try {
           const session = await createDirectConnectSession({
@@ -4050,7 +4050,7 @@ async function run(): Promise<CommanderCommand> {
           if (!isRemoteTuiEnabled && !hasInitialPrompt) {
             return await exitWithError(
               root,
-              'Error: --remote requires a description.\nUsage: claude --remote "your task description"',
+              'Error: --remote requires a description.\nUsage: prism --remote "your task description"',
               () => gracefulShutdown(1),
             );
           }
@@ -4082,7 +4082,7 @@ async function run(): Promise<CommanderCommand> {
             // Original behavior: print session info and exit
             process.stdout.write(`Created remote session: ${createdSession.title}\n`);
             process.stdout.write(`View: ${getRemoteSessionUrl(createdSession.id)}?m=0\n`);
-            process.stdout.write(`Resume with: claude --teleport ${createdSession.id}\n`);
+            process.stdout.write(`Resume with: prism --teleport ${createdSession.id}\n`);
             await gracefulShutdown(0);
             process.exit(0);
           }
@@ -4203,9 +4203,9 @@ async function run(): Promise<CommanderCommand> {
                   } else {
                     // No known paths - show original error
                     throw new TeleportOperationError(
-                      `You must run claude --teleport ${teleport} from a checkout of ${sessionRepo}.`,
+                      `You must run prism --teleport ${teleport} from a checkout of ${sessionRepo}.`,
                       chalk.red(
-                        `You must run claude --teleport ${teleport} from a checkout of ${chalk.bold(sessionRepo)}.\n`,
+                        `You must run prism --teleport ${teleport} from a checkout of ${chalk.bold(sessionRepo)}.\n`,
                       ),
                     );
                   }
@@ -4609,7 +4609,7 @@ async function run(): Promise<CommanderCommand> {
     return program;
   }
 
-  // claude mcp
+  // prism mcp
 
   const mcp = program
     .command('mcp')
@@ -4693,7 +4693,7 @@ async function run(): Promise<CommanderCommand> {
       await mcpResetChoicesHandler();
     });
 
-  // claude server
+  // prism server
   if (feature('DIRECT_CONNECT')) {
     program
       .command('server')
@@ -4725,7 +4725,7 @@ async function run(): Promise<CommanderCommand> {
 
           const existing = await probeRunningServer();
           if (existing) {
-            process.stderr.write(`A claude server is already running (pid ${existing.pid}) at ${existing.httpUrl}\n`);
+            process.stderr.write(`A prism server is already running (pid ${existing.pid}) at ${existing.httpUrl}\n`);
             process.exit(1);
           }
 
@@ -4807,14 +4807,14 @@ async function run(): Promise<CommanderCommand> {
         process.stderr.write(
           'Usage: claude ssh <user@host | ssh-config-alias> [dir]\n\n' +
             "Runs Claude Code on a remote Linux host. You don't need to install\n" +
-            'anything on the remote or run `claude auth login` there — the binary is\n' +
+            'anything on the remote or run `prism auth login` there — the binary is\n' +
             'deployed over SSH and API auth tunnels back through your local machine.\n',
         );
         process.exit(1);
       });
   }
 
-  // claude connect — subcommand only handles -p (headless) mode.
+  // prism connect — subcommand only handles -p (headless) mode.
   // Interactive mode (without -p) is handled by early argv rewriting in main()
   // which redirects to the main command with full TUI support.
   if (feature('DIRECT_CONNECT')) {
@@ -4862,7 +4862,7 @@ async function run(): Promise<CommanderCommand> {
       );
   }
 
-  // claude auth
+  // prism auth
 
   const auth = program.command('auth').description('Manage authentication').configureHelp(createSortedHelpConfig());
 
@@ -5022,7 +5022,7 @@ async function run(): Promise<CommanderCommand> {
     .alias('rm')
     .description('Uninstall an installed plugin')
     .option('-s, --scope <scope>', 'Uninstall from scope: user, project, or local', 'user')
-    .option('--keep-data', "Preserve the plugin's persistent data directory (~/.claude/plugins/data/{id}/)")
+    .option('--keep-data', "Preserve the plugin's persistent data directory (~/.prism/plugins/data/{id}/)")
     .addOption(coworkOption())
     .action(
       async (
@@ -5505,7 +5505,7 @@ async function logTenguInit({
 }): Promise<void> {
   try {
     logEvent('tengu_init', {
-      entrypoint: 'claude' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+      entrypoint: 'prism' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       hasInitialPrompt,
       hasStdin,
       verbose,

@@ -169,8 +169,8 @@ const mockedGetClaudeConfigHomeDirSM: (() => string) & {
 } = Object.assign(
   () =>
     useMockForSessionMemory
-      ? '/mock/home/.claude'
-      : (process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')).normalize(
+      ? '/mock/home/.prism'
+      : (process.env.PRISM_CONFIG_DIR ?? join(homedir(), '.prism')).normalize(
           'NFC',
         ),
   { cache: { clear: () => {}, get: (_k: unknown) => undefined } },
@@ -195,8 +195,8 @@ mock.module('src/utils/envUtils.js', () => ({
   getTeamsDir: () =>
     join(
       useMockForSessionMemory
-        ? '/mock/home/.claude'
-        : (process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')),
+        ? '/mock/home/.prism'
+        : (process.env.PRISM_CONFIG_DIR ?? join(homedir(), '.prism')),
       'teams',
     ),
   hasNodeOption: (flag: string) => {

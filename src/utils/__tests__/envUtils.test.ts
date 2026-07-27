@@ -321,22 +321,22 @@ describe('shouldMaintainProjectWorkingDir', () => {
 // ─── getClaudeConfigHomeDir ────────────────────────────────────────────
 
 describe('getClaudeConfigHomeDir', () => {
-  const saved = process.env.CLAUDE_CONFIG_DIR
+  const saved = process.env.PRISM_CONFIG_DIR
 
   afterEach(() => {
-    if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR
-    else process.env.CLAUDE_CONFIG_DIR = saved
+    if (saved === undefined) delete process.env.PRISM_CONFIG_DIR
+    else process.env.PRISM_CONFIG_DIR = saved
   })
 
-  test('uses CLAUDE_CONFIG_DIR when set', () => {
-    process.env.CLAUDE_CONFIG_DIR = '/tmp/test-claude'
-    // Memoized by CLAUDE_CONFIG_DIR key, so changing env gives fresh value
+  test('uses PRISM_CONFIG_DIR when set', () => {
+    process.env.PRISM_CONFIG_DIR = '/tmp/test-claude'
+    // Memoized by PRISM_CONFIG_DIR key, so changing env gives fresh value
     expect(getClaudeConfigHomeDir()).toBe('/tmp/test-claude')
   })
 
-  test('returns a string ending with .claude by default', () => {
-    delete process.env.CLAUDE_CONFIG_DIR
+  test('returns a string ending with .prism by default', () => {
+    delete process.env.PRISM_CONFIG_DIR
     const result = getClaudeConfigHomeDir()
-    expect(result).toMatch(/\.claude$/)
+    expect(result).toMatch(/\.prism$/)
   })
 })

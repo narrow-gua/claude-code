@@ -1,7 +1,43 @@
 import { describe, expect, test } from 'bun:test'
+import {
+  getContextWindowForModel,
+  getModelMaxOutputTokens,
+  modelAllows1MContextToggle,
+  modelHasDefault1MContext,
+} from '../../context'
 import { firstPartyNameToCanonical } from '../model'
 
+describe('Opus 5 capabilities', () => {
+  test('uses the native 1M context window without changing legacy defaults', () => {
+    expect(modelHasDefault1MContext('claude-opus-5')).toBe(true)
+    expect(getContextWindowForModel('claude-opus-5')).toBe(1_000_000)
+    expect(getContextWindowForModel('claude-opus-4-5-20251101')).toBe(200_000)
+  })
+
+  test('only suppresses the picker toggle for native 1M models', () => {
+    expect(modelAllows1MContextToggle('claude-opus-5')).toBe(false)
+    expect(modelAllows1MContextToggle('claude-opus-4-7')).toBe(true)
+    expect(modelAllows1MContextToggle('claude-sonnet-4-6')).toBe(true)
+    expect(modelAllows1MContextToggle('claude-haiku-4-5')).toBe(true)
+    expect(modelAllows1MContextToggle('custom-provider-model')).toBe(true)
+  })
+
+  test('uses a 64K default and 128K upper output limit', () => {
+    expect(getModelMaxOutputTokens('claude-opus-5')).toEqual({
+      default: 64_000,
+      upperLimit: 128_000,
+    })
+  })
+})
+
 describe('firstPartyNameToCanonical', () => {
+  test('maps Opus 5 provider IDs to the canonical model', () => {
+    expect(firstPartyNameToCanonical('claude-opus-5')).toBe('claude-opus-5')
+    expect(firstPartyNameToCanonical('anthropic.claude-opus-5')).toBe(
+      'claude-opus-5',
+    )
+  })
+
   test('maps opus-4-6 full name to canonical', () => {
     expect(firstPartyNameToCanonical('claude-opus-4-6-20250514')).toBe(
       'claude-opus-4-6',

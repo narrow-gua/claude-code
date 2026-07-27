@@ -11,6 +11,7 @@ import { useAppState, useSetAppState } from '../../state/AppState.js';
 import type { LocalJSXCommandCall } from '../../types/command.js';
 import type { EffortLevel } from '../../utils/effort.js';
 import { isBilledAsExtraUsage } from '../../utils/extraUsage.js';
+import { modelHasDefault1MContext } from '../../utils/context.js';
 import {
   clearFastModeCooldown,
   isFastModeAvailable,
@@ -21,6 +22,7 @@ import { MODEL_ALIASES } from '../../utils/model/aliases.js';
 import { checkOpus1mAccess, checkSonnet1mAccess } from '../../utils/model/check1mAccess.js';
 import {
   getDefaultMainLoopModelSetting,
+  getDefaultOpusModel,
   isOpus1mMergeEnabled,
   renderDefaultModelSetting,
 } from '../../utils/model/model.js';
@@ -224,7 +226,13 @@ function isKnownAlias(model: string): boolean {
 
 function isOpus1mUnavailable(model: string): boolean {
   const m = model.toLowerCase();
-  return !checkOpus1mAccess() && !isOpus1mMergeEnabled() && m.includes('opus') && m.includes('[1m]');
+  return (
+    !modelHasDefault1MContext(getDefaultOpusModel()) &&
+    !checkOpus1mAccess() &&
+    !isOpus1mMergeEnabled() &&
+    m.includes('opus') &&
+    m.includes('[1m]')
+  );
 }
 
 function isSonnet1mUnavailable(model: string): boolean {

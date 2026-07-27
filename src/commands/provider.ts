@@ -1,8 +1,11 @@
 import type { Command } from '../commands.js'
 import type { LocalCommandCall } from '../types/command.js'
 import { getAPIProvider } from '../utils/model/providers.js'
-import { updateSettingsForSource } from '../utils/settings/settings.js'
-import { getSettings_DEPRECATED } from '../utils/settings/settings.js'
+import {
+  getSettings_DEPRECATED,
+  migrateInlineSlotOverridesToProfiles,
+  updateSettingsForSource,
+} from '../utils/settings/settings.js'
 import { applyConfigEnvironmentVariables } from '../utils/managedEnv.js'
 
 function getEnvVarForProvider(provider: string): string {
@@ -37,7 +40,108 @@ function getMergedEnv(): Record<string, string> {
 }
 
 const call: LocalCommandCall = async (args, _context) => {
-  const arg = args.trim().toLowerCase()
+  const rawArg = args.trim()
+  const arg = rawArg.toLowerCase()
+
+  if (arg === 'profiles' || arg.startsWith('use ')) {
+    const { error } = migrateInlineSlotOverridesToProfiles()
+    if (error) {
+      return {
+        type: 'text',
+        value: `Failed to migrate existing API override: ${error.message}`,
+      }
+    }
+  }
+
+  if (arg === 'profiles') {
+    const profiles = getSettings_DEPRECATED()?.apiProfiles ?? {}
+    const overrides = getSettings_DEPRECATED()?.modelSlotOverrides ?? {}
+    const assignedSlots = new Map<string, string[]>()
+    for (const [slot, override] of Object.entries(overrides)) {
+      if (!override || !('profileId' in override)) continue
+      const slots = assignedSlots.get(override.profileId) ?? []
+      slots.push(slot)
+      assignedSlots.set(override.profileId, slots)
+    }
+    const lines = Object.entries(profiles)
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name))
+      .map(([profileId, profile]) => {
+        const slots = assignedSlots.get(profileId)
+        return `- ${profile.name} [${profileId}] · ${profile.apiMode}${slots?.length ? ` · slots: ${slots.join(', ')}` : ''}`
+      })
+    return {
+      type: 'text',
+      value: lines.length
+        ? `Saved API profiles:\n${lines.join('\n')}\n\nSwitch: /api use <slot> <name-or-id>`
+        : 'No API profiles saved. Create one via /login → API profiles & model slots.',
+    }
+  }
+
+  if (arg.startsWith('use ')) {
+    const match = rawArg.match(
+      /^use\s+(all|haiku|sonnet|opus|fable|glm|grok|kimi)\s+(.+)$/i,
+    )
+    if (!match) {
+      return {
+        type: 'text',
+        value:
+          'Usage: /api use <all|haiku|sonnet|opus|fable|glm|grok|kimi> <profile-name-or-id|inherit>',
+      }
+    }
+    const slot = match[1]!.toLowerCase()
+    const targetSlots =
+      slot === 'all'
+        ? ['haiku', 'sonnet', 'opus', 'fable', 'glm', 'grok', 'kimi']
+        : [slot]
+    const targetLabel = slot === 'all' ? 'all model slots' : slot
+    const inheritVerb = slot === 'all' ? 'inherit' : 'inherits'
+    const useVerb = slot === 'all' ? 'use' : 'uses'
+    const target = match[2]!.trim()
+    if (target.toLowerCase() === 'inherit') {
+      const { error } = updateSettingsForSource('userSettings', {
+        modelSlotOverrides: Object.fromEntries(
+          targetSlots.map(targetSlot => [targetSlot, undefined]),
+        ),
+      })
+      return {
+        type: 'text',
+        value: error
+          ? `Failed to clear ${targetLabel} API profile: ${error.message}`
+          : `${targetLabel} now ${inheritVerb} the global API settings.`,
+      }
+    }
+
+    const profiles = getSettings_DEPRECATED()?.apiProfiles ?? {}
+    const matches = Object.entries(profiles).filter(
+      ([profileId, profile]) =>
+        profileId === target ||
+        profile.name.toLowerCase() === target.toLowerCase(),
+    )
+    if (matches.length === 0) {
+      return {
+        type: 'text',
+        value: `API profile not found: ${target}\nRun /api profiles to list saved profiles.`,
+      }
+    }
+    if (matches.length > 1) {
+      return {
+        type: 'text',
+        value: `Multiple profiles are named “${target}”. Use the profile ID from /api profiles.`,
+      }
+    }
+    const [profileId, profile] = matches[0]!
+    const { error } = updateSettingsForSource('userSettings', {
+      modelSlotOverrides: Object.fromEntries(
+        targetSlots.map(targetSlot => [targetSlot, { profileId }]),
+      ),
+    })
+    return {
+      type: 'text',
+      value: error
+        ? `Failed to switch ${targetLabel} API profile: ${error.message}`
+        : `${targetLabel} now ${useVerb} API profile “${profile.name}”.`,
+    }
+  }
 
   // No argument: show current provider
   if (!arg) {
@@ -165,9 +269,10 @@ const provider = {
   type: 'local',
   name: 'provider',
   description:
-    'Switch API provider (anthropic/openai/gemini/grok/bedrock/vertex/foundry)',
+    'Switch API provider or assign saved API profiles to model slots',
   aliases: ['api'],
-  argumentHint: '[anthropic|openai|gemini|grok|bedrock|vertex|foundry|unset]',
+  argumentHint:
+    '[profiles|use <slot> <profile>|anthropic|openai|gemini|grok|bedrock|vertex|foundry|unset]',
   supportsNonInteractive: true,
   load: () => Promise.resolve({ call }),
 } satisfies Command

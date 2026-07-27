@@ -5,6 +5,7 @@ export type ModelSlotName =
   | 'fable'
   | 'glm'
   | 'grok'
+  | 'kimi'
 export type ModelSlotApiMode = 'inherit' | 'anthropic' | 'openai' | 'gemini'
 export type ModelSlotRoutingProvider =
   | 'firstParty'
@@ -16,6 +17,14 @@ export type ModelSlotRoutingProvider =
   | 'grok'
 
 export type ModelSlotApiOverrideValue = {
+  profileId?: string
+  apiMode?: ModelSlotApiMode
+  baseUrl?: string
+  authKey?: string
+}
+
+export type ApiProfileValue = {
+  name: string
   apiMode: ModelSlotApiMode
   baseUrl?: string
   authKey?: string
@@ -32,6 +41,7 @@ export type ResolvedModelSlotApiOverride = {
 type ModelSlotOverrides = Partial<
   Record<ModelSlotName, ModelSlotApiOverrideValue>
 >
+type ApiProfiles = Record<string, ApiProfileValue>
 
 const SLOT_MODEL_ENV_VARS: Record<ModelSlotName, string[]> = {
   haiku: [
@@ -63,6 +73,11 @@ const SLOT_MODEL_ENV_VARS: Record<ModelSlotName, string[]> = {
     'ANTHROPIC_DEFAULT_GROK_MODEL',
     'OPENAI_DEFAULT_GROK_MODEL',
     'GEMINI_DEFAULT_GROK_MODEL',
+  ],
+  kimi: [
+    'ANTHROPIC_DEFAULT_KIMI_MODEL',
+    'OPENAI_DEFAULT_KIMI_MODEL',
+    'GEMINI_DEFAULT_KIMI_MODEL',
   ],
 }
 
@@ -99,6 +114,7 @@ export function getModelSlotForModel(
   if (normalized.includes('fable')) return 'fable'
   if (normalized.includes('glm')) return 'glm'
   if (normalized.includes('grok')) return 'grok'
+  if (normalized.includes('kimi')) return 'kimi'
   return undefined
 }
 
@@ -107,27 +123,40 @@ export function resolveModelSlotApiOverride(
   overrides: ModelSlotOverrides | undefined,
   inheritedProvider: ModelSlotRoutingProvider,
   env: Record<string, string | undefined> = process.env,
+  profiles?: ApiProfiles,
 ): ResolvedModelSlotApiOverride | undefined {
   const slot = getModelSlotForModel(model, env)
   if (!slot) return undefined
   const override = overrides?.[slot]
   if (!override) return undefined
 
-  const baseUrl = override.baseUrl?.trim() || undefined
-  const authKey = override.authKey?.trim() || undefined
-  if (override.apiMode === 'inherit' && !baseUrl && !authKey) return undefined
+  const selected = override.profileId
+    ? profiles?.[override.profileId]
+    : override.apiMode
+      ? {
+          name: '',
+          apiMode: override.apiMode,
+          baseUrl: override.baseUrl,
+          authKey: override.authKey,
+        }
+      : undefined
+  if (!selected) return undefined
+
+  const baseUrl = selected.baseUrl?.trim() || undefined
+  const authKey = selected.authKey?.trim() || undefined
+  if (selected.apiMode === 'inherit' && !baseUrl && !authKey) return undefined
 
   const provider: ModelSlotRoutingProvider =
-    override.apiMode === 'inherit'
+    selected.apiMode === 'inherit'
       ? inheritedProvider
-      : override.apiMode === 'anthropic'
+      : selected.apiMode === 'anthropic'
         ? 'firstParty'
-        : override.apiMode
+        : selected.apiMode
 
   return {
     slot,
     provider,
-    apiMode: override.apiMode,
+    apiMode: selected.apiMode,
     ...(baseUrl && { baseUrl }),
     ...(authKey && { authKey }),
   }

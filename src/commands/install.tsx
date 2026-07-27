@@ -37,12 +37,12 @@ function getInstallationPath(): string {
 
   if (isWindows) {
     // Convert to Windows-style path
-    const windowsPath = join(homeDir, '.local', 'bin', 'claude.exe');
+    const windowsPath = join(homeDir, '.local', 'bin', 'prism.exe');
     // Replace forward slashes with backslashes for Windows display
     return windowsPath.replace(/\//g, '\\');
   }
 
-  return '~/.local/bin/claude';
+  return '~/.local/bin/prism';
 }
 
 function SetupNotes({ messages }: { messages: string[] }): React.ReactNode {
@@ -234,7 +234,7 @@ function Install({ onDone, force, target }: InstallProps): React.ReactNode {
             <Box marginTop={1}>
               <Text dimColor>Next: Run </Text>
               <Text color="claude" bold>
-                claude --help
+                prism --help
               </Text>
               <Text dimColor> to get started</Text>
             </Box>

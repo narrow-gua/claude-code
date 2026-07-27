@@ -2,7 +2,7 @@ import type { Command, LocalCommandResult } from '../../types/command.js'
 import { getSessionId } from '../../bootstrap/state.js'
 
 /**
- * /env — show the user a snapshot of the current environment, claude config,
+ * /env — show the user a snapshot of the current environment, prism config,
  * feature flags, and version info. All secrets are masked.
  *
  * Pure-local command: no Anthropic backend dependency. Restored from stub

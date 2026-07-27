@@ -587,13 +587,13 @@ describe('Opus 4.7 Prompt Engineering Audit', () => {
 
     test('env info contains model family', async () => {
       const envInfo = await computeSimpleEnvInfo('claude-opus-4-7')
-      expect(envInfo).toContain('Claude 4.5/4.6/4.7')
+      expect(envInfo).toContain('Claude 5')
     })
 
     test('env info contains correct model IDs', async () => {
       const envInfo = await computeSimpleEnvInfo('claude-opus-4-7')
-      expect(envInfo).toContain('claude-opus-4-7')
-      expect(envInfo).toContain('claude-sonnet-4-6')
+      expect(envInfo).toContain('claude-opus-5')
+      expect(envInfo).toContain('claude-sonnet-5')
       expect(envInfo).toContain('claude-haiku-4-5')
     })
 

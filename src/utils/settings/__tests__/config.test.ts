@@ -56,6 +56,24 @@ describe('SettingsSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  test('accepts named API profiles and profile-based slot assignments', () => {
+    const result = SettingsSchema().safeParse({
+      apiProfiles: {
+        work: {
+          name: 'Work proxy',
+          apiMode: 'anthropic',
+          baseUrl: 'https://work.example.com',
+          authKey: 'secret',
+        },
+      },
+      modelSlotOverrides: {
+        opus: { profileId: 'work' },
+        kimi: { profileId: 'work' },
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
   test('rejects an unsupported slot API mode', () => {
     const result = SettingsSchema().safeParse({
       modelSlotOverrides: {

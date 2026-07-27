@@ -161,9 +161,9 @@ function ClaudeInChromeMenu({
 
             <Text>
               <Text dimColor>Usage: </Text>
-              <Text>claude --chrome</Text>
+              <Text>prism --chrome</Text>
               <Text dimColor> or </Text>
-              <Text>claude --no-chrome</Text>
+              <Text>prism --no-chrome</Text>
             </Text>
 
             <Text dimColor>

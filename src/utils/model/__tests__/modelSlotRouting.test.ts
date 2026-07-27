@@ -15,13 +15,14 @@ describe('model slot routing', () => {
     expect(getModelSlotForModel('glm-special', env)).toBe('glm')
   })
 
-  test('recognizes all six slot families and strips 1m suffix', () => {
+  test('recognizes all seven slot families and strips 1m suffix', () => {
     expect(getModelSlotForModel('claude-haiku-4-5')).toBe('haiku')
     expect(getModelSlotForModel('claude-sonnet-5')).toBe('sonnet')
     expect(getModelSlotForModel('claude-opus-4-8[1m]')).toBe('opus')
     expect(getModelSlotForModel('claude-fable-5')).toBe('fable')
     expect(getModelSlotForModel('glm-5.2')).toBe('glm')
     expect(getModelSlotForModel('grok-4.5')).toBe('grok')
+    expect(getModelSlotForModel('kimi-k3')).toBe('kimi')
   })
 
   test('resolves explicit protocol, URL, and key for a slot', () => {
@@ -67,6 +68,43 @@ describe('model slot routing', () => {
         'claude-opus-4-8',
         { opus: { apiMode: 'inherit' } },
         'firstParty',
+      ),
+    ).toBeUndefined()
+  })
+
+  test('resolves a named API profile assigned to a slot', () => {
+    expect(
+      resolveModelSlotApiOverride(
+        'claude-opus-5',
+        { opus: { profileId: 'work' } },
+        'firstParty',
+        {},
+        {
+          work: {
+            name: 'Work proxy',
+            apiMode: 'anthropic',
+            baseUrl: ' https://work.example.com ',
+            authKey: ' work-key ',
+          },
+        },
+      ),
+    ).toEqual({
+      slot: 'opus',
+      provider: 'firstParty',
+      apiMode: 'anthropic',
+      baseUrl: 'https://work.example.com',
+      authKey: 'work-key',
+    })
+  })
+
+  test('falls back to global routing when an assigned profile is missing', () => {
+    expect(
+      resolveModelSlotApiOverride(
+        'claude-opus-5',
+        { opus: { profileId: 'deleted' } },
+        'firstParty',
+        {},
+        {},
       ),
     ).toBeUndefined()
   })

@@ -28,20 +28,20 @@ describe('waitForUrlEvent', () => {
     await expect(waitForUrlEvent(1)).resolves.toBeNull()
   })
 
-  test('returns a Claude URL from environment variables', async () => {
-    process.env.CLAUDE_CODE_URL_EVENT = 'claude-cli://prompt?q=hello'
+  test('returns a Prism URL from environment variables', async () => {
+    process.env.CLAUDE_CODE_URL_EVENT = 'prism-cli://prompt?q=hello'
 
-    await expect(waitForUrlEvent()).resolves.toBe('claude-cli://prompt?q=hello')
+    await expect(waitForUrlEvent()).resolves.toBe('prism-cli://prompt?q=hello')
   })
 
-  test('returns a Claude URL from argv', async () => {
-    process.argv = [...originalArgv, 'claude://prompt?q=hello']
+  test('returns a Prism URL from argv', async () => {
+    process.argv = [...originalArgv, 'prism-cli://prompt?q=hello']
 
-    await expect(waitForUrlEvent()).resolves.toBe('claude://prompt?q=hello')
+    await expect(waitForUrlEvent()).resolves.toBe('prism-cli://prompt?q=hello')
   })
 
   test('rejects URLs exceeding the maximum length', async () => {
-    process.env.CLAUDE_CODE_URL_EVENT = `claude-cli://${'x'.repeat(2048)}`
+    process.env.CLAUDE_CODE_URL_EVENT = `prism-cli://${'x'.repeat(2048)}`
 
     await expect(waitForUrlEvent()).resolves.toBeNull()
   })

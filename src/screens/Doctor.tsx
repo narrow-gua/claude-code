@@ -115,7 +115,7 @@ export function Doctor({ onDone }: Props): React.ReactNode {
       {
         name: 'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
         // Check for values against the latest supported model
-        ...getModelMaxOutputTokens('claude-opus-4-7'),
+        ...getModelMaxOutputTokens('claude-opus-5'),
       },
     ];
     return envVars
@@ -132,7 +132,7 @@ export function Doctor({ onDone }: Props): React.ReactNode {
 
     void (async () => {
       const userAgentsDir = join(getClaudeConfigHomeDir(), 'agents');
-      const projectAgentsDir = join(getOriginalCwd(), '.claude', 'agents');
+      const projectAgentsDir = join(getOriginalCwd(), '.prism', 'agents');
 
       const { activeAgents, allAgents, failedFiles } = agentDefinitions;
 
@@ -167,7 +167,7 @@ export function Doctor({ onDone }: Props): React.ReactNode {
 
       // Fetch version lock info if PID-based locking is enabled
       if (isPidBasedLockingEnabled()) {
-        const locksDir = join(getXDGStateHome(), 'claude', 'locks');
+        const locksDir = join(getXDGStateHome(), 'prism', 'locks');
         const staleLocksCleaned = cleanupStaleLocks(locksDir);
         const locks = getAllLockInfo(locksDir);
         setVersionLockInfo({

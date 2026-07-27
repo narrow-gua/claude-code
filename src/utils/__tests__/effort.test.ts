@@ -295,6 +295,11 @@ describe('resolvePickerEffortPersistence', () => {
 // ─── modelSupportsEffort ───────────────────────────────────────────────
 
 describe('modelSupportsEffort', () => {
+  test('returns true for Opus 5 without changing legacy model behavior', () => {
+    expect(modelSupportsEffort('claude-opus-5')).toBe(true)
+    expect(modelSupportsEffort('claude-opus-4-5-20251101')).toBe(false)
+  })
+
   test('supports Claude Opus 4.8', () => {
     expect(modelSupportsEffort('claude-opus-4-8')).toBe(true)
   })

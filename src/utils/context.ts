@@ -51,10 +51,24 @@ export function modelSupports1M(model: string): boolean {
   }
   const canonical = getCanonicalName(model)
   return (
+    canonical.includes('claude-opus-5') ||
     canonical.includes('claude-sonnet-4') ||
     canonical.includes('opus-4-6') ||
     canonical.includes('opus-4-7')
   )
+}
+
+/** Models whose standard endpoint always uses a 1M context window. */
+export function modelHasDefault1MContext(model: string): boolean {
+  if (is1mContextDisabled()) {
+    return false
+  }
+  return getCanonicalName(model).includes('claude-opus-5')
+}
+
+/** Picker policy: native-1M models need no toggle; other providers may opt in. */
+export function modelAllows1MContextToggle(model: string): boolean {
+  return !is1mContextDisabled() && !modelHasDefault1MContext(model)
 }
 
 export function getContextWindowForModel(
@@ -77,6 +91,10 @@ export function getContextWindowForModel(
 
   // [1m] suffix — explicit client-side opt-in, respected over all detection
   if (has1mContext(model)) {
+    return 1_000_000
+  }
+
+  if (modelHasDefault1MContext(model)) {
     return 1_000_000
   }
 
@@ -197,6 +215,9 @@ export function getModelMaxOutputTokens(model: string): {
   if (getChatGPTModelContextWindow(model) !== undefined) {
     defaultTokens = 32_000
     upperLimit = CHATGPT_CODEX_MAX_OUTPUT_TOKENS
+  } else if (m.includes('opus-5')) {
+    defaultTokens = 64_000
+    upperLimit = 128_000
   } else if (m.includes('opus-4-7')) {
     defaultTokens = 64_000
     upperLimit = 128_000
