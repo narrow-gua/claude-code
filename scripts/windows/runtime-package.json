@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "doubaoime-asr": "0.1.0",
+    "ws": "8.20.0"
+  },
+  "private": true,
+  "type": "module"
+}
