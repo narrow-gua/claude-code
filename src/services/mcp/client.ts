@@ -230,6 +230,7 @@ function getMcpToolTimeoutMs(): number {
 }
 
 import { isClaudeInChromeMCPServer } from '../../utils/claudeInChrome/common.js'
+import { isReadonlyDatabaseMCPServer } from '../../utils/readonlyDatabase/common.js'
 
 // Lazy: toolRendering.tsx pulls React/ink; only needed when Claude-in-Chrome MCP server is connected
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -946,6 +947,22 @@ export const connectToServer = memoize(
         await inProcessServer.connect(serverTransport)
         transport = clientTransport
         logMCPDebug(name, `In-process Computer Use MCP server started`)
+      } else if (
+        ((serverRef as ScopedMcpServerConfig).type === 'stdio' ||
+          !(serverRef as ScopedMcpServerConfig).type) &&
+        isReadonlyDatabaseMCPServer(name)
+      ) {
+        const { createReadonlyDatabaseMcpServer } = await import(
+          '../../utils/readonlyDatabase/mcpServer.js'
+        )
+        const { createLinkedTransportPair } = await import(
+          './InProcessTransport.js'
+        )
+        inProcessServer = createReadonlyDatabaseMcpServer()
+        const [clientTransport, serverTransport] = createLinkedTransportPair()
+        await inProcessServer.connect(serverTransport)
+        transport = clientTransport
+        logMCPDebug(name, `In-process read-only database MCP server started`)
       } else if (
         (serverRef as ScopedMcpServerConfig).type === 'stdio' ||
         !(serverRef as ScopedMcpServerConfig).type

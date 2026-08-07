@@ -9,11 +9,12 @@ import type {
   NewSessionResponse,
   SessionModeState,
   SessionModelState,
+  McpServer,
 } from '@agentclientprotocol/sdk'
 import type { Message } from '../../../types/message.js'
 import { QueryEngine } from '../../../QueryEngine.js'
 import type { QueryEngineConfig } from '../../../QueryEngine.js'
-import type { Tools } from '../../../Tool.js'
+import type { Tool, Tools } from '../../../Tool.js'
 import { getTools } from '../../../tools.js'
 import { getEmptyToolPermissionContext } from '../../../Tool.js'
 import type { PermissionMode } from '../../../types/permissions.js'
@@ -45,6 +46,45 @@ import {
 } from './permissionMode.js'
 import { buildConfigOptions } from './configOptions.js'
 import { readClientCapabilities } from './internalAccessors.js'
+import { getMcpToolsCommandsAndResources } from '../../mcp/client.js'
+import type {
+  MCPServerConnection,
+  ScopedMcpServerConfig,
+  ServerResource,
+} from '../../mcp/types.js'
+
+function acpMcpConfigs(
+  servers: McpServer[],
+): Record<string, ScopedMcpServerConfig> {
+  const configs: Record<string, ScopedMcpServerConfig> = {}
+  for (const server of servers) {
+    if ('command' in server) {
+      configs[server.name] = {
+        type: 'stdio',
+        command: server.command,
+        args: server.args,
+        env: Object.fromEntries(
+          server.env.map(item => [item.name, item.value]),
+        ),
+        scope: 'dynamic',
+      }
+      continue
+    }
+    configs[server.name] = {
+      type: server.type,
+      url: server.url,
+      headers: Object.fromEntries(
+        server.headers.map(item => [item.name, item.value]),
+      ),
+      scope: 'dynamic',
+    }
+  }
+  return configs
+}
+
+function dedupeByName<T extends { name: string }>(items: T[]): T[] {
+  return [...new Map(items.map(item => [item.name, item])).values()]
+}
 
 /**
  * Resolve the effective `permissions.defaultMode` setting by walking the
@@ -102,9 +142,8 @@ async function createSession(
   applySafeConfigEnvironmentVariables()
 
   try {
-    // Build tools with a permissive permission context.
+    // Build the session permission context before loading built-in and MCP tools.
     const permissionContext = getEmptyToolPermissionContext()
-    const tools: Tools = getTools(permissionContext)
 
     // Parse permission mode from _meta (passed by RCS/acp-link) or settings.
     const meta = params._meta as Record<string, unknown> | null | undefined
@@ -118,6 +157,19 @@ async function createSession(
       hasMetaPermissionMode,
       settingsPermissionMode,
     )
+    const externalPermissionBrokerAvailable =
+      meta?.externalPermissionBrokerAvailable === true
+    const allowedTools = Array.isArray(meta?.allowedTools)
+      ? meta.allowedTools.filter(
+          (toolName): toolName is string => typeof toolName === 'string',
+        )
+      : []
+    const outputSchema =
+      meta?.outputSchema &&
+      typeof meta.outputSchema === 'object' &&
+      !Array.isArray(meta.outputSchema)
+        ? (meta.outputSchema as Record<string, unknown>)
+        : undefined
 
     // The clientCapabilities field on the shell is private; access it via
     // the public initialize() side effect. Since createSession is only ever
@@ -146,9 +198,6 @@ async function createSession(
           .isBypassPermissionsModeAvailable ?? false,
     )
 
-    // Parse MCP servers from ACP params
-    // MCP server config is handled separately in the tools system
-
     // bypassPermissions is exposed to ACP clients whenever the process itself allows it
     // (non-root or sandbox). The previous additional opt-in gate made the mode invisible
     // to standard clients and defeated the purpose of listing it. See permissionMode.ts.
@@ -161,13 +210,47 @@ async function createSession(
         ...permissionContext,
         mode: permissionMode as PermissionMode,
         isBypassPermissionsModeAvailable: isBypassAvailable,
+        externalPermissionBrokerAvailable,
+        alwaysAllowRules: allowedTools.length
+          ? { ...permissionContext.alwaysAllowRules, cliArg: allowedTools }
+          : permissionContext.alwaysAllowRules,
       },
     }
 
+    const mcpClients: MCPServerConnection[] = []
+    const mcpTools: Tool[] = []
+    const mcpCommands: Awaited<ReturnType<typeof getCommands>> = []
+    const mcpResources: Record<string, ServerResource[]> = {}
+    await getMcpToolsCommandsAndResources(
+      ({ client, tools: connectedTools, commands, resources }) => {
+        mcpClients.push(client)
+        mcpTools.push(...connectedTools)
+        mcpCommands.push(...commands)
+        for (const resource of resources ?? []) {
+          const serverResources = mcpResources[resource.server] ?? []
+          serverResources.push(resource)
+          mcpResources[resource.server] = serverResources
+        }
+      },
+      acpMcpConfigs(params.mcpServers),
+    )
+    appState.mcp = {
+      ...appState.mcp,
+      clients: mcpClients,
+      tools: mcpTools,
+      commands: mcpCommands,
+      resources: mcpResources,
+    }
+
     // Load commands and agent definitions for subagent support
-    const [commands, agentDefinitionsResult] = await Promise.all([
+    const [baseCommands, agentDefinitionsResult] = await Promise.all([
       getCommands(cwd),
       getAgentDefinitionsWithOverrides(cwd),
+    ])
+    const commands = dedupeByName([...baseCommands, ...mcpCommands])
+    const tools: Tools = dedupeByName([
+      ...getTools(appState.toolPermissionContext),
+      ...mcpTools,
     ])
 
     // Inject agent definitions into appState
@@ -178,7 +261,7 @@ async function createSession(
       cwd,
       tools,
       commands,
-      mcpClients: [],
+      mcpClients,
       agents: agentDefinitionsResult.activeAgents,
       canUseTool,
       getAppState: () => appState,
@@ -189,6 +272,7 @@ async function createSession(
       readFileCache: new FileStateCache(500, 50 * 1024 * 1024),
       includePartialMessages: true,
       replayUserMessages: true,
+      jsonSchema: outputSchema,
       initialMessages: opts.initialMessages,
     }
 

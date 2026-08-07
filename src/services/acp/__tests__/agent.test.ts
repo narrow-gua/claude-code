@@ -46,6 +46,7 @@ const mockSubmitMessage = mock(async function* (_input: string) {})
 
 mockModulePreservingExports('../../../QueryEngine.ts', {
   QueryEngine: class MockQueryEngine {
+    constructor(readonly config: Record<string, unknown>) {}
     submitMessage = mockSubmitMessage
     interrupt = mock(() => {})
     resetAbortController = mock(() => {})
@@ -95,6 +96,13 @@ const mockGetDefaultAppState = mock(() => ({
   verbose: false,
   mainLoopModel: null,
   mainLoopModelForSession: null,
+  mcp: {
+    clients: [],
+    tools: [],
+    commands: [],
+    resources: {},
+    pluginReconnectKey: 0,
+  },
 }))
 
 mockModulePreservingExports('../../../state/AppStateStore.ts', {
@@ -192,6 +200,11 @@ const mockGetCommands = mock(async () => [
 
 mockModulePreservingExports('../../../commands.ts', {
   getCommands: mockGetCommands,
+})
+
+const mockGetMcpToolsCommandsAndResources = mock(async () => {})
+mockModulePreservingExports('../../../services/mcp/client.ts', {
+  getMcpToolsCommandsAndResources: mockGetMcpToolsCommandsAndResources,
 })
 
 // ── Import after mocks ────────────────────────────────────────────
@@ -417,6 +430,36 @@ describe('AcpAgent', () => {
       } as any)
 
       expect(res.modes?.currentModeId).toBe('plan')
+    })
+
+    test('applies ACP broker, allowed tools, and output schema metadata', async () => {
+      const agent = new AcpAgent(makeConn())
+      const outputSchema = {
+        type: 'object',
+        required: ['ok'],
+        properties: { ok: { type: 'boolean' } },
+      }
+      const res = await agent.newSession({
+        cwd: '/tmp',
+        mcpServers: [],
+        _meta: {
+          permissionMode: 'auto',
+          externalPermissionBrokerAvailable: true,
+          allowedTools: ['mcp__workbench__report_evidence'],
+          outputSchema,
+        },
+      } as any)
+      const session = agent.sessions.get(res.sessionId)!
+      const permissionContext = session.appState.toolPermissionContext
+      const queryEngine = session.queryEngine as unknown as {
+        config: { jsonSchema?: Record<string, unknown> }
+      }
+
+      expect(permissionContext.externalPermissionBrokerAvailable).toBe(true)
+      expect(permissionContext.alwaysAllowRules.cliArg).toEqual([
+        'mcp__workbench__report_evidence',
+      ])
+      expect(queryEngine.config.jsonSchema).toEqual(outputSchema)
     })
 
     test('honors _meta.permissionMode bypass without any opt-in (always available when process allows)', async () => {

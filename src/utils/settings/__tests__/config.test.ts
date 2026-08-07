@@ -90,6 +90,37 @@ describe('SettingsSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  test('accepts read-only database profiles without inline passwords', () => {
+    const result = SettingsSchema().safeParse({
+      readonlyDatabaseProfiles: {
+        cgh: {
+          driver: 'mysql',
+          host: '192.168.3.160',
+          user: 'readonly_user',
+          passwordEnv: 'CGH_DB_PASSWORD',
+        },
+      },
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.readonlyDatabaseProfiles?.cgh?.port).toBe(3306)
+      expect(result.data.readonlyDatabaseProfiles?.cgh?.maxRows).toBe(500)
+    }
+  })
+
+  test('rejects read-only database profiles without a user source', () => {
+    const result = SettingsSchema().safeParse({
+      readonlyDatabaseProfiles: {
+        cgh: {
+          driver: 'mysql',
+          host: '192.168.3.160',
+          passwordEnv: 'CGH_DB_PASSWORD',
+        },
+      },
+    })
+    expect(result.success).toBe(false)
+  })
+
   test('accepts permissions block with deny rules', () => {
     const result = SettingsSchema().safeParse({
       permissions: { deny: ['Bash(rm -rf *)'] },

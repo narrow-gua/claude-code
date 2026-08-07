@@ -130,6 +130,37 @@ describe('createAcpCanUseTool', () => {
     ).toHaveLength(0)
   })
 
+  test('delegates auto classifier denials to the ACP client', async () => {
+    const conn = makeConn({
+      outcome: { outcome: 'selected', optionId: 'allow' },
+    })
+    hasPermissionsMock.mockResolvedValueOnce({
+      behavior: 'deny',
+      message: 'blocked by auto classifier',
+      decisionReason: {
+        type: 'classifier',
+        classifier: 'auto-mode',
+        reason: 'risky command',
+      },
+    })
+
+    const result = await createAcpCanUseTool(conn, 'sess-auto', () => 'auto')(
+      makeTool('Bash'),
+      { command: 'risky command' },
+      dummyContext,
+      dummyMsg,
+      'tu_auto',
+    )
+
+    expect(result).toEqual({
+      behavior: 'allow',
+      updatedInput: { command: 'risky command' },
+    })
+    expect(
+      (conn.requestPermission as ReturnType<typeof mock>).mock.calls,
+    ).toHaveLength(1)
+  })
+
   test('denies when the permission pipeline throws', async () => {
     const conn = makeConn()
     hasPermissionsMock.mockRejectedValueOnce(new Error('rule loader failed'))

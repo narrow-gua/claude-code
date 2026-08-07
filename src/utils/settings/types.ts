@@ -53,6 +53,35 @@ export const ModelSlotApiOverrideSchema = lazySchema(() =>
   ]),
 )
 
+export const ReadonlyDatabaseProfileSchema = lazySchema(() =>
+  z
+    .object({
+      driver: z.literal('mysql'),
+      host: z.string().min(1),
+      port: z.number().int().min(1).max(65_535).default(3306),
+      database: z.string().min(1).optional(),
+      user: z.string().min(1).optional(),
+      userEnv: z.string().min(1).optional(),
+      passwordEnv: z.string().min(1),
+      connectTimeoutMs: z.number().int().min(100).max(60_000).default(5_000),
+      queryTimeoutMs: z.number().int().min(100).max(300_000).default(10_000),
+      maxRows: z.number().int().min(1).max(5_000).default(500),
+      maxResultBytes: z
+        .number()
+        .int()
+        .min(1_024)
+        .max(4_000_000)
+        .default(256_000),
+      ssl: z.boolean().default(false),
+    })
+    .refine(
+      profile => profile.user !== undefined || profile.userEnv !== undefined,
+      {
+        message: 'Readonly database profile requires either user or userEnv',
+      },
+    ),
+)
+
 /**
  * Schema for permissions section
  */
@@ -385,6 +414,12 @@ export const SettingsSchema = lazySchema(() =>
       permissions: PermissionsSchema()
         .optional()
         .describe('Tool usage permissions configuration'),
+      readonlyDatabaseProfiles: z
+        .record(z.string().min(1), ReadonlyDatabaseProfileSchema())
+        .optional()
+        .describe(
+          'Named read-only database connections exposed through the bundled readonly-database MCP. Passwords must be referenced through passwordEnv and are never accepted as tool input.',
+        ),
       modelType: z
         .enum(['anthropic', 'openai', 'gemini', 'grok'])
         .optional()

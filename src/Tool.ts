@@ -122,6 +122,8 @@ export type ToolPermissionContext = DeepImmutable<{
   strippedDangerousRules?: ToolPermissionRulesBySource
   /** When true, permission prompts are auto-denied (e.g., background agents that can't show UI) */
   shouldAvoidPermissionPrompts?: boolean
+  /** When true, non-interactive permission requests can be delegated to an external ACP/stdio broker. */
+  externalPermissionBrokerAvailable?: boolean
   /** When true, automated checks (classifier, hooks) are awaited before showing the permission dialog (coordinator workers) */
   awaitAutomatedChecksBeforeDialog?: boolean
   /** Stores the permission mode before model-initiated plan mode entry, so it can be restored on exit */

@@ -199,6 +199,7 @@ import { getGhAuthStatus } from './utils/github/ghAuthStatus.js';
 import { safeParseJSON } from './utils/json.js';
 import { logError } from './utils/log.js';
 import { getModelDeprecationWarning } from './utils/model/deprecation.js';
+import { isReadonlyDatabaseMCPServer } from './utils/readonlyDatabase/common.js';
 import {
   getDefaultMainLoopModel,
   getUserSpecifiedModelSetting,
@@ -1943,6 +1944,8 @@ async function run(): Promise<CommanderCommand> {
           let reservedNameError: string | null = null;
           if (nonSdkConfigNames.some(isClaudeInChromeMCPServer)) {
             reservedNameError = `Invalid MCP configuration: "${CLAUDE_IN_CHROME_MCP_SERVER_NAME}" is a reserved MCP name.`;
+          } else if (nonSdkConfigNames.some(isReadonlyDatabaseMCPServer)) {
+            reservedNameError = 'Invalid MCP configuration: "readonly-database" is a reserved MCP name.';
           } else if (feature('CHICAGO_MCP')) {
             const { isComputerUseMCPServer, COMPUTER_USE_MCP_SERVER_NAME } = await import(
               'src/utils/computerUse/common.js'
@@ -2092,6 +2095,26 @@ async function run(): Promise<CommanderCommand> {
         } catch (error) {
           logForDebugging(`[Computer Use MCP] Setup failed: ${errorMessage(error)}`);
         }
+      }
+
+      // Bundled read-only database MCP. Presence of at least one validated
+      // readonlyDatabaseProfiles entry enables the server. The one query tool
+      // is added to allowedTools so normal calls do not prompt; explicit deny
+      // and ask permission rules still take precedence in the permission
+      // pipeline. Connection details remain in trusted settings/environment,
+      // never in model-supplied tool input.
+      try {
+        const { setupReadonlyDatabaseMCP } = await import('src/utils/readonlyDatabase/setup.js');
+        const readonlyDatabase = setupReadonlyDatabaseMCP();
+        if (readonlyDatabase) {
+          dynamicMcpConfig = {
+            ...dynamicMcpConfig,
+            ...readonlyDatabase.mcpConfig,
+          };
+          allowedTools.push(...readonlyDatabase.allowedTools);
+        }
+      } catch (error) {
+        logForDebugging(`[Read-only database MCP] Setup failed: ${errorMessage(error)}`);
       }
 
       // Store additional directories for CLAUDE.md loading (controlled by env var)

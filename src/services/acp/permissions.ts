@@ -32,7 +32,7 @@ import { toolInfoFromToolUse } from './bridge.js'
 export function createAcpCanUseTool(
   conn: AgentSideConnection,
   sessionId: string,
-  _getCurrentMode: () => string,
+  getCurrentMode: () => string,
   clientCapabilities?: ClientCapabilities,
   cwd?: string,
   onModeChange?: (modeId: string) => void,
@@ -99,9 +99,14 @@ export function createAcpCanUseTool(
         return pipelineResult as PermissionAllowDecision
       }
       if (pipelineResult.behavior === 'deny') {
-        return pipelineResult as PermissionDenyDecision
+        const classifierDenied =
+          pipelineResult.decisionReason?.type === 'classifier'
+        if (!classifierDenied || getCurrentMode() !== 'auto') {
+          return pipelineResult as PermissionDenyDecision
+        }
       }
-      // behavior === 'ask' → fall through to client delegation
+      // behavior === 'ask', or an auto-classifier deny while ACP is available,
+      // falls through to client delegation.
     } catch (err) {
       console.error('[ACP Permissions] Pipeline error:', err)
       return {

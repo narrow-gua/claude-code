@@ -437,6 +437,7 @@ export type ToolPermissionContext = {
   readonly isBypassPermissionsModeAvailable: boolean
   readonly strippedDangerousRules?: ToolPermissionRulesBySource
   readonly shouldAvoidPermissionPrompts?: boolean
+  readonly externalPermissionBrokerAvailable?: boolean
   readonly awaitAutomatedChecksBeforeDialog?: boolean
   readonly prePlanMode?: PermissionMode
 }

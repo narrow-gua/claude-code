@@ -150,6 +150,11 @@ async function teardownSession(
   if (!session) return
 
   await this.cancel({ sessionId })
+  await Promise.allSettled(
+    session.appState.mcp.clients
+      .filter(client => client.type === 'connected')
+      .map(client => client.cleanup()),
+  )
   this.sessions.delete(sessionId)
 }
 

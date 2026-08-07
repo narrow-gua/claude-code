@@ -503,6 +503,8 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
   // This is done at the end so it can't be bypassed by early returns
   if (result.behavior === 'ask') {
     const appState = context.getAppState()
+    const externalPermissionBrokerAvailable =
+      appState.toolPermissionContext.externalPermissionBrokerAvailable === true
 
     if (appState.toolPermissionContext.mode === 'dontAsk') {
       return {
@@ -532,7 +534,10 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
         result.decisionReason?.type === 'safetyCheck' &&
         !result.decisionReason.classifierApprovable
       ) {
-        if (appState.toolPermissionContext.shouldAvoidPermissionPrompts) {
+        if (
+          appState.toolPermissionContext.shouldAvoidPermissionPrompts &&
+          !externalPermissionBrokerAvailable
+        ) {
           return {
             behavior: 'deny',
             message: result.message,
@@ -572,7 +577,10 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
         tool.name === POWERSHELL_TOOL_NAME &&
         !feature('POWERSHELL_AUTO_MODE')
       ) {
-        if (appState.toolPermissionContext.shouldAvoidPermissionPrompts) {
+        if (
+          appState.toolPermissionContext.shouldAvoidPermissionPrompts &&
+          !externalPermissionBrokerAvailable
+        ) {
           return {
             behavior: 'deny',
             message: 'PowerShell tool requires interactive approval',
@@ -823,7 +831,10 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
         // error, won't recover on retry. Skip iron_gate and fall back to
         // normal prompting so the user can approve/deny manually.
         if (classifierResult.transcriptTooLong) {
-          if (appState.toolPermissionContext.shouldAvoidPermissionPrompts) {
+          if (
+            appState.toolPermissionContext.shouldAvoidPermissionPrompts &&
+            !externalPermissionBrokerAvailable
+          ) {
             // Permanent condition (transcript only grows) — deny-retry-deny
             // wastes tokens without ever hitting the denial-limit abort.
             throw new AbortError(
@@ -853,7 +864,10 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
               CLASSIFIER_FAIL_CLOSED_REFRESH_MS,
             )
           ) {
-            if (appState.toolPermissionContext.shouldAvoidPermissionPrompts) {
+            if (
+              appState.toolPermissionContext.shouldAvoidPermissionPrompts &&
+              !externalPermissionBrokerAvailable
+            ) {
               logForDebugging(
                 'Auto mode classifier unavailable, denying with retry guidance (fail closed)',
                 { level: 'warn' },
@@ -921,6 +935,19 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
           return denialLimitResult
         }
 
+        if (externalPermissionBrokerAvailable) {
+          return {
+            ...result,
+            behavior: 'ask',
+            decisionReason: {
+              type: 'classifier',
+              classifier: 'auto-mode',
+              reason: classifierResult.reason,
+            },
+            message: buildYoloRejectionMessage(classifierResult.reason),
+          }
+        }
+
         return {
           behavior: 'deny',
           decisionReason: {
@@ -950,7 +977,10 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
     // When permission prompts should be avoided (e.g., background/headless agents),
     // run PermissionRequest hooks first to give them a chance to allow/deny.
     // Only auto-deny if no hook provides a decision.
-    if (appState.toolPermissionContext.shouldAvoidPermissionPrompts) {
+    if (
+      appState.toolPermissionContext.shouldAvoidPermissionPrompts &&
+      !externalPermissionBrokerAvailable
+    ) {
       const hookDecision = await runPermissionRequestHooksForHeadlessAgent(
         tool,
         input,
@@ -1005,7 +1035,10 @@ function persistDenialState(
 function handleDenialLimitExceeded(
   denialState: DenialTrackingState,
   appState: {
-    toolPermissionContext: { shouldAvoidPermissionPrompts?: boolean }
+    toolPermissionContext: {
+      shouldAvoidPermissionPrompts?: boolean
+      externalPermissionBrokerAvailable?: boolean
+    }
   },
   classifierReason: string,
   assistantMessage: AssistantMessage,
@@ -1018,7 +1051,9 @@ function handleDenialLimitExceeded(
   }
 
   const hitTotalLimit = denialState.totalDenials >= DENIAL_LIMITS.maxTotal
-  const isHeadless = appState.toolPermissionContext.shouldAvoidPermissionPrompts
+  const isHeadless =
+    appState.toolPermissionContext.shouldAvoidPermissionPrompts &&
+    !appState.toolPermissionContext.externalPermissionBrokerAvailable
   // Capture counts before persistDenialState, which may mutate denialState
   // in-place via Object.assign for subagents with localDenialTracking.
   const totalCount = denialState.totalDenials

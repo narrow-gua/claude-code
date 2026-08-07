@@ -76,6 +76,10 @@ import { isEnvTruthy } from '../../utils/envUtils.js'
 import { errorMessage } from '../../utils/errors.js'
 import { captureAPIRequest, logError } from '../../utils/log.js'
 import {
+  normalizeToolUseId,
+  normalizeToolUseIdsForAPI,
+} from '../../utils/toolUseIdCompatibility.js'
+import {
   createAssistantAPIErrorMessage,
   createUserMessage,
   ensureToolResultPairing,
@@ -1306,6 +1310,7 @@ async function* queryModel(
 
   queryCheckpoint('query_message_normalization_start')
   let messagesForAPI = normalizeMessagesForAPI(messages, filteredTools)
+  messagesForAPI = normalizeToolUseIdsForAPI(messagesForAPI)
   queryCheckpoint('query_message_normalization_end')
 
   // Model-specific post-processing: strip tool-search-specific fields if the
@@ -2118,6 +2123,7 @@ async function* queryModel(
               case 'tool_use':
                 contentBlocks[part.index] = {
                   ...part.content_block,
+                  id: normalizeToolUseId(part.content_block.id),
                   input: '',
                 }
                 break

@@ -87,6 +87,40 @@ async function main(): Promise<void> {
   const { profileCheckpoint } = await import('../utils/startupProfiler.js');
   profileCheckpoint('cli_entry');
 
+  // `prism --model` without a value is a discovery command. Keep the normal
+  // `--model <slot-or-id>` path unchanged while making every named slot and
+  // its currently resolved model ID visible from the shell.
+  if (args.length === 1 && args[0] === '--model') {
+    profileCheckpoint('cli_list_model_slots_path');
+    const { enableConfigs } = await import('../utils/config.js');
+    enableConfigs();
+    const {
+      getDefaultFableModel,
+      getDefaultGlmModel,
+      getDefaultGrokModel,
+      getDefaultHaikuModel,
+      getDefaultKimiModel,
+      getDefaultOpusModel,
+      getDefaultSonnetModel,
+    } = await import('../utils/model/model.js');
+    const slots = [
+      ['opus', getDefaultOpusModel()],
+      ['sonnet', getDefaultSonnetModel()],
+      ['haiku', getDefaultHaikuModel()],
+      ['fable', getDefaultFableModel()],
+      ['glm', getDefaultGlmModel()],
+      ['grok', getDefaultGrokModel()],
+      ['kimi', getDefaultKimiModel()],
+    ];
+
+    console.log('Available model slots:');
+    for (const [slot, model] of slots) {
+      console.log(`  ${slot.padEnd(8)} ${model}`);
+    }
+    console.log('\nUsage: prism --model <slot>');
+    return;
+  }
+
   // Fast-path for --dump-system-prompt: output the rendered system prompt and exit.
   // Used by prompt sensitivity evals to extract the system prompt at a specific commit.
   // Ant-only: eliminated from external builds via feature flag.
@@ -117,6 +151,11 @@ async function main(): Promise<void> {
     profileCheckpoint('cli_computer_use_mcp_path');
     const { runComputerUseMcpServer } = await import('../utils/computerUse/mcpServer.js');
     await runComputerUseMcpServer();
+    return;
+  } else if (process.argv[2] === '--readonly-database-mcp') {
+    profileCheckpoint('cli_readonly_database_mcp_path');
+    const { runReadonlyDatabaseMcpServer } = await import('../utils/readonlyDatabase/mcpServer.js');
+    await runReadonlyDatabaseMcpServer();
     return;
   }
 
