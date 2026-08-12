@@ -52,6 +52,7 @@ import type {
   ScopedMcpServerConfig,
   ServerResource,
 } from '../../mcp/types.js'
+import { setupReadonlyDatabaseMCP } from '../../../utils/readonlyDatabase/setup.js'
 
 function acpMcpConfigs(
   servers: McpServer[],
@@ -159,11 +160,15 @@ async function createSession(
     )
     const externalPermissionBrokerAvailable =
       meta?.externalPermissionBrokerAvailable === true
-    const allowedTools = Array.isArray(meta?.allowedTools)
+    const clientAllowedTools = Array.isArray(meta?.allowedTools)
       ? meta.allowedTools.filter(
           (toolName): toolName is string => typeof toolName === 'string',
         )
       : []
+    const readonlyDatabase = setupReadonlyDatabaseMCP()
+    const allowedTools = [
+      ...new Set([...clientAllowedTools, ...readonlyDatabase.allowedTools]),
+    ]
     const outputSchema =
       meta?.outputSchema &&
       typeof meta.outputSchema === 'object' &&
@@ -221,6 +226,15 @@ async function createSession(
     const mcpTools: Tool[] = []
     const mcpCommands: Awaited<ReturnType<typeof getCommands>> = []
     const mcpResources: Record<string, ServerResource[]> = {}
+    // ACP clients provide session-scoped MCP servers (for example workbench),
+    // but Prism-owned MCP capabilities must remain available just as they are
+    // in the normal CLI. Merge both sources and let the built-in definition
+    // win on reserved-name collisions so a client cannot replace the guarded
+    // read-only database implementation.
+    const mcpConfigs = {
+      ...acpMcpConfigs(params.mcpServers),
+      ...readonlyDatabase.mcpConfig,
+    }
     await getMcpToolsCommandsAndResources(
       ({ client, tools: connectedTools, commands, resources }) => {
         mcpClients.push(client)
@@ -232,7 +246,7 @@ async function createSession(
           mcpResources[resource.server] = serverResources
         }
       },
-      acpMcpConfigs(params.mcpServers),
+      mcpConfigs,
     )
     appState.mcp = {
       ...appState.mcp,

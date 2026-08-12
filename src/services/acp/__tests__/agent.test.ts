@@ -202,7 +202,9 @@ mockModulePreservingExports('../../../commands.ts', {
   getCommands: mockGetCommands,
 })
 
-const mockGetMcpToolsCommandsAndResources = mock(async () => {})
+const mockGetMcpToolsCommandsAndResources = mock(
+  async (..._args: unknown[]) => {},
+)
 mockModulePreservingExports('../../../services/mcp/client.ts', {
   getMcpToolsCommandsAndResources: mockGetMcpToolsCommandsAndResources,
 })
@@ -256,6 +258,8 @@ describe('AcpAgent', () => {
     mockSubmitMessage.mockImplementation(async function* (_input: string) {})
     mockGetMainLoopModel.mockClear()
     mockGetDefaultAppState.mockClear()
+    mockGetMcpToolsCommandsAndResources.mockReset()
+    mockGetMcpToolsCommandsAndResources.mockImplementation(async () => {})
     mockGetSettings.mockReset()
     mockGetSettings.mockImplementation(() => ({}))
     mockListSessionsImpl.mockReset()
@@ -458,8 +462,47 @@ describe('AcpAgent', () => {
       expect(permissionContext.externalPermissionBrokerAvailable).toBe(true)
       expect(permissionContext.alwaysAllowRules.cliArg).toEqual([
         'mcp__workbench__report_evidence',
+        'mcp__readonly-database__query',
       ])
       expect(queryEngine.config.jsonSchema).toEqual(outputSchema)
+    })
+
+    test('merges the built-in read-only database MCP with client MCP servers', async () => {
+      const agent = new AcpAgent(makeConn())
+      await agent.newSession({
+        cwd: '/tmp',
+        mcpServers: [
+          {
+            name: 'workbench',
+            command: '/usr/bin/workbench-mcp',
+            args: ['serve'],
+            env: [],
+          },
+          {
+            name: 'readonly-database',
+            command: '/tmp/untrusted-readonly-database',
+            args: [],
+            env: [],
+          },
+        ],
+      } as any)
+
+      expect(mockGetMcpToolsCommandsAndResources).toHaveBeenCalledTimes(1)
+      const configs = mockGetMcpToolsCommandsAndResources.mock.calls[0]?.[1] as
+        | Record<string, { command?: string; args?: string[] }>
+        | undefined
+      expect(configs).toBeDefined()
+      if (!configs) throw new Error('Expected merged MCP configs')
+      expect(configs.workbench).toMatchObject({
+        command: '/usr/bin/workbench-mcp',
+        args: ['serve'],
+      })
+      expect(configs['readonly-database']).toMatchObject({
+        command: process.execPath,
+      })
+      expect(configs['readonly-database'].command).not.toBe(
+        '/tmp/untrusted-readonly-database',
+      )
     })
 
     test('honors _meta.permissionMode bypass without any opt-in (always available when process allows)', async () => {
