@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import { logForDebugging } from '../../../utils/debug.js'
 import { getValidChatGPTAuth } from './chatgptAuth.js'
@@ -32,6 +32,33 @@ type AnthropicUsage = {
   output_tokens: number
   cache_creation_input_tokens: number
   cache_read_input_tokens: number
+}
+
+function shortCacheHash(value: unknown): string {
+  return createHash('sha256')
+    .update(JSON.stringify(value) ?? '')
+    .digest('hex')
+    .slice(0, 12)
+}
+
+/**
+ * Non-sensitive fingerprints for diagnosing prompt-prefix drift. Hash static
+ * cache components instead of logging prompt or tool-schema contents.
+ */
+export function getResponsesCacheFingerprint(request: {
+  instructions?: string
+  tools?: ResponsesTool[]
+  input: ResponsesInputItem[]
+}): {
+  instructions: string
+  tools: string
+  firstInput: string
+} {
+  return {
+    instructions: shortCacheHash(request.instructions ?? ''),
+    tools: shortCacheHash(request.tools ?? []),
+    firstInput: shortCacheHash(request.input[0] ?? null),
+  }
 }
 
 function textFromContent(content: unknown): string {
@@ -478,10 +505,14 @@ export async function* adaptResponsesStreamToAnthropic(
         thinkingBlockOpen = false
       }
       const response = event.response as Record<string, unknown> | undefined
+      const usage = extractUsage(response)
+      logForDebugging(
+        `[OpenAI Responses] usage input=${usage.input_tokens} cacheWrite=${usage.cache_creation_input_tokens} cacheRead=${usage.cache_read_input_tokens} output=${usage.output_tokens}`,
+      )
       yield {
         type: 'message_delta',
         delta: { stop_reason: mapStopReason(response), stop_sequence: null },
-        usage: extractUsage(response),
+        usage,
       } as unknown as BetaRawMessageStreamEvent
       yield { type: 'message_stop' } as BetaRawMessageStreamEvent
     }
@@ -538,8 +569,9 @@ export async function createChatGPTResponsesStream(params: {
     }
   }
   const requestBody = JSON.stringify({ ...params.request, model })
+  const cacheFingerprint = getResponsesCacheFingerprint(params.request)
   logForDebugging(
-    `[OpenAI Responses] request id=${clientRequestId} source=${params.querySource ?? 'unknown'} model=${model} bodyBytes=${new TextEncoder().encode(requestBody).byteLength}`,
+    `[OpenAI Responses] request id=${clientRequestId} source=${params.querySource ?? 'unknown'} model=${model} bodyBytes=${new TextEncoder().encode(requestBody).byteLength} cacheKey=${params.request.prompt_cache_key} cacheInstructions=${cacheFingerprint.instructions} cacheTools=${cacheFingerprint.tools} cacheFirstInput=${cacheFingerprint.firstInput}`,
   )
   const response = await fetchFn(endpoint, {
     method: 'POST',

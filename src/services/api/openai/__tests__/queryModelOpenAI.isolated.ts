@@ -607,8 +607,8 @@ describe('queryModelOpenAI — max_tokens forwarded to request', () => {
 
     expect(_lastCreateArgs).not.toBeNull()
     expect(_lastCreateArgs!.max_tokens).toBe(8192)
-    // Process-sticky OpenAI cache routing (not message-derived)
-    expect(_lastCreateArgs!.prompt_cache_key).toMatch(/^ccb:[0-9a-f-]+$/i)
+    const { getSessionId } = await import('../../../../bootstrap/state.js')
+    expect(_lastCreateArgs!.prompt_cache_key).toBe(`prism:${getSessionId()}`)
   })
 })
 

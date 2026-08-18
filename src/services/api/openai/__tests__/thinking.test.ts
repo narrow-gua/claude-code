@@ -204,7 +204,7 @@ describe('buildOpenAIRequestBody — thinking params', () => {
     tools: [] as any[],
     toolChoice: undefined as any,
     // Avoid depending on bootstrap session state in pure request-body tests.
-    promptCacheKey: 'ccb:test-session',
+    promptCacheKey: 'prism:test-session',
   } as any
 
   test('includes official DeepSeek API thinking format when enabled', () => {
@@ -218,7 +218,7 @@ describe('buildOpenAIRequestBody — thinking params', () => {
       enableThinking: false,
       maxTokens: 1024,
     })
-    expect(body.prompt_cache_key).toBe('ccb:test-session')
+    expect(body.prompt_cache_key).toBe('prism:test-session')
   })
 
   test('includes vLLM/self-hosted thinking format when enabled', () => {

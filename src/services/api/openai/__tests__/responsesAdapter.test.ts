@@ -5,8 +5,12 @@ import { calculateCacheHitRate } from '../../../../utils/cacheWarning.js'
 
 mock.module('src/utils/debug.ts', debugMock)
 
-const { buildResponsesRequest, createChatGPTResponsesStream, extractUsage } =
-  await import('../responsesAdapter.js')
+const {
+  buildResponsesRequest,
+  createChatGPTResponsesStream,
+  extractUsage,
+  getResponsesCacheFingerprint,
+} = await import('../responsesAdapter.js')
 
 describe('buildResponsesRequest', () => {
   test('rejects an empty model before any network request can be made', () => {
@@ -65,7 +69,7 @@ describe('buildResponsesRequest', () => {
       promptCacheKey: key,
     })
 
-    expect(request.prompt_cache_key).toBe('ccb:session-abc-123')
+    expect(request.prompt_cache_key).toBe('prism:session-abc-123')
   })
 
   test('defaults prompt_cache_key to process-stable fallback when not overridden', () => {
@@ -82,7 +86,7 @@ describe('buildResponsesRequest', () => {
       toolChoice: undefined,
     })
 
-    expect(request.prompt_cache_key).toMatch(/^ccb:[0-9a-f-]+$/i)
+    expect(request.prompt_cache_key).toMatch(/^prism:[0-9a-f-]+$/i)
     expect(again.prompt_cache_key).toBe(request.prompt_cache_key)
   })
 
@@ -108,7 +112,88 @@ describe('buildResponsesRequest', () => {
     })
 
     expect(turn1.prompt_cache_key).toBe(turn2.prompt_cache_key)
-    expect(turn1.prompt_cache_key).toBe('ccb:same-session')
+    expect(turn1.prompt_cache_key).toBe('prism:same-session')
+  })
+})
+
+describe('getResponsesCacheFingerprint', () => {
+  test('stays stable when later conversation turns are appended', () => {
+    const first = buildResponsesRequest({
+      model: 'gpt-5.6-sol',
+      messages: [
+        { role: 'system', content: 'stable instructions' },
+        { role: 'user', content: 'first question' },
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: { name: 'read', parameters: { type: 'object' } },
+        },
+      ],
+      toolChoice: undefined,
+    })
+    const later = buildResponsesRequest({
+      model: 'gpt-5.6-sol',
+      messages: [
+        { role: 'system', content: 'stable instructions' },
+        { role: 'user', content: 'first question' },
+        { role: 'assistant', content: 'first answer' },
+        { role: 'user', content: 'follow-up' },
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: { name: 'read', parameters: { type: 'object' } },
+        },
+      ],
+      toolChoice: undefined,
+    })
+
+    expect(getResponsesCacheFingerprint(first)).toEqual(
+      getResponsesCacheFingerprint(later),
+    )
+  })
+
+  test('changes when instructions or tools change', () => {
+    const base = buildResponsesRequest({
+      model: 'gpt-5.6-sol',
+      messages: [
+        { role: 'system', content: 'instructions-a' },
+        { role: 'user', content: 'question' },
+      ],
+      tools: [],
+      toolChoice: undefined,
+    })
+    const changedInstructions = buildResponsesRequest({
+      model: 'gpt-5.6-sol',
+      messages: [
+        { role: 'system', content: 'instructions-b' },
+        { role: 'user', content: 'question' },
+      ],
+      tools: [],
+      toolChoice: undefined,
+    })
+    const changedTools = buildResponsesRequest({
+      model: 'gpt-5.6-sol',
+      messages: [
+        { role: 'system', content: 'instructions-a' },
+        { role: 'user', content: 'question' },
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: { name: 'read', parameters: { type: 'object' } },
+        },
+      ],
+      toolChoice: undefined,
+    })
+
+    expect(getResponsesCacheFingerprint(base).instructions).not.toBe(
+      getResponsesCacheFingerprint(changedInstructions).instructions,
+    )
+    expect(getResponsesCacheFingerprint(base).tools).not.toBe(
+      getResponsesCacheFingerprint(changedTools).tools,
+    )
   })
 })
 

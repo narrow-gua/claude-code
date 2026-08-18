@@ -18,23 +18,25 @@ import { randomUUID } from 'crypto'
  * for the whole conversation — never derived from full message bodies (that
  * changes every turn and defeats routing).
  *
- * Format: `ccb:<sessionId>`
+ * Format: `prism:<sessionId>`
  */
 export function formatOpenAIPromptCacheKey(sessionId: string): string {
-  return `ccb:${sessionId}`
+  return `prism:${sessionId}`
 }
 
 /**
- * Process-scoped sticky key. OpenAI uses this for cache-node routing, not as a
- * content hash — it only needs to be stable across multi-turn requests in the
- * same CCB process. Avoids a bootstrap/state import so pure unit tests and
- * partial mocks stay isolated.
+ * Process-scoped fallback for isolated request builders and compatible API
+ * callers that do not have a Prism session. Production query paths pass the
+ * persisted session ID explicitly so cache routing survives /resume and
+ * process restarts. Keeping bootstrap/state out of this pure helper also keeps
+ * request-body unit tests and partial mocks isolated.
  */
 let processPromptCacheKey: string | null = null
 
 /**
- * Stable OpenAI `prompt_cache_key` for this process.
- * Prefer an explicit override (session id) when the caller already has one.
+ * Stable OpenAI `prompt_cache_key`.
+ * Production callers should pass the active session ID. Without one, this
+ * falls back to a process-stable key for compatibility and isolated tests.
  */
 export function getOpenAIPromptCacheKey(sessionIdOverride?: string): string {
   if (sessionIdOverride) {
