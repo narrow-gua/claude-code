@@ -66,7 +66,6 @@ import {
   getCliTeammateModeOverride,
   clearCliTeammateModeOverride,
 } from '../../utils/swarm/backends/teammateModeSnapshot.js';
-import { getHardcodedTeammateModelFallback } from '../../utils/swarm/teammateModel.js';
 import { useSearchInput } from '../../hooks/useSearchInput.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import {
@@ -265,6 +264,9 @@ export function Config({
       mainLoopModel: value,
       mainLoopModelForSession: null,
     }));
+    updateSettingsForSource('userSettings', {
+      model: value ?? undefined,
+    });
     setChanges(prev => {
       const valStr =
         modelDisplayString(value) +
@@ -1346,6 +1348,7 @@ export function Config({
     });
     const iu = initialUserSettings;
     updateSettingsForSource('userSettings', {
+      model: iu?.model,
       alwaysThinkingEnabled: iu?.alwaysThinkingEnabled,
       fastMode: iu?.fastMode,
       promptSuggestionEnabled: iu?.promptSuggestionEnabled,
@@ -1700,8 +1703,8 @@ export function Config({
               setShowSubmenu(null);
               setTabsHidden(false);
               // First-open-then-Enter from unset: picker highlights "Default"
-              // (initial=null) and confirming would write null, silently
-              // switching Opus-fallback → follow-leader. Treat as no-op.
+              // (initial=null). Both states follow the leader, so avoid an
+              // unnecessary settings write.
               if (globalConfig.teammateDefaultModel === undefined && model === null) {
                 return;
               }
@@ -2053,10 +2056,7 @@ export function Config({
 }
 
 function teammateModelDisplayString(value: string | null | undefined): string {
-  if (value === undefined) {
-    return modelDisplayString(getHardcodedTeammateModelFallback());
-  }
-  if (value === null) return "Default (leader's model)";
+  if (value === undefined || value === null) return "Default (leader's model)";
   return modelDisplayString(value);
 }
 

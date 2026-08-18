@@ -8,6 +8,12 @@ import { resolveOverriddenModel } from './modelStrings.js'
  * (or resolved name) contains the family identifier.
  */
 function modelBelongsToFamily(model: string, family: string): boolean {
+  if (
+    family === 'codex' &&
+    (model === 'gpt-5.6' || model.startsWith('gpt-5.6-'))
+  ) {
+    return true
+  }
   if (model.includes(family)) {
     return true
   }

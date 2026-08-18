@@ -22,6 +22,11 @@ export function isPrActivitySubscriptionTool(name: string): boolean {
 const coordinatorModeModule = feature('COORDINATOR_MODE')
   ? (require('../coordinator/coordinatorMode.js') as typeof import('../coordinator/coordinatorMode.js'))
   : null
+const applyUnionToolVisibility = feature('UNION_MODE')
+  ? (
+      require('../union/toolVisibility.js') as typeof import('../union/toolVisibility.js')
+    ).applyUnionToolVisibility
+  : (tools: Tools, _permissionContext?: ToolPermissionContext): Tools => tools
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 /**
@@ -49,23 +54,24 @@ export function applyCoordinatorToolFilter(tools: Tools): Tools {
  *
  * @param initialTools - Extra tools to include (built-in + startup MCP from props).
  * @param assembled - Tools from assembleToolPool (built-in + MCP, deduped).
- * @param mode - The permission context mode.
+ * @param permissionContext - The permission context used for tool filtering.
  * @returns Merged, deduplicated, and coordinator-filtered tool array.
  */
 export function mergeAndFilterTools(
   initialTools: Tools,
   assembled: Tools,
-  _mode: ToolPermissionContext['mode'],
+  permissionContext: ToolPermissionContext,
 ): Tools {
   // Merge initialTools on top - they take precedence in deduplication.
   // initialTools may include built-in tools (from getTools() in REPL.tsx) which
   // overlap with assembled tools. uniqBy handles this deduplication.
   // Partition-sort for prompt-cache stability (same as assembleToolPool):
   // built-ins must stay a contiguous prefix for the server's cache policy.
-  const [mcp, builtIn] = partition(
+  const visibleTools = applyUnionToolVisibility(
     uniqBy([...initialTools, ...assembled], 'name'),
-    isMcpTool,
+    permissionContext,
   )
+  const [mcp, builtIn] = partition(visibleTools, isMcpTool)
   const byName = (a: Tool, b: Tool) => a.name.localeCompare(b.name)
   const tools = [...builtIn.sort(byName), ...mcp.sort(byName)]
 

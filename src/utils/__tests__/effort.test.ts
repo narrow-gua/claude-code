@@ -329,8 +329,9 @@ describe('modelSupportsEffort', () => {
       'claude-haiku-4-5-20251001',
       'claude-fable-5',
       'glm-5.2',
-      'grok-4.5',
+      'grok-4.6',
       'kimi-k3',
+      'gpt-5.6-sol',
     ]) {
       expect(modelSupportsEffort(model)).toBe(true)
     }

@@ -477,6 +477,14 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
   assistantMessage,
   toolUseID,
 ): Promise<PermissionDecision> => {
+  if (feature('UNION_MODE')) {
+    const { getUnionPlannerDenial } =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../../union/permissions.js') as typeof import('../../union/permissions.js')
+    const unionDenial = getUnionPlannerDenial(tool, input, context.agentType)
+    if (unionDenial) return unionDenial
+  }
+
   const result = await hasPermissionsToUseToolInner(tool, input, context)
 
   // Reset consecutive denials on any allowed tool use in auto mode.

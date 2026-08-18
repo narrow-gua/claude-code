@@ -28,6 +28,7 @@ import {
 } from '../../utils/model/model.js';
 import { isModelAllowed } from '../../utils/model/modelAllowlist.js';
 import { validateModel } from '../../utils/model/validateModel.js';
+import { updateSettingsForSource } from '../../utils/settings/settings.js';
 
 function ModelPickerWrapper({
   onDone,
@@ -60,6 +61,9 @@ function ModelPickerWrapper({
       mainLoopModel: model,
       mainLoopModelForSession: null,
     }));
+    updateSettingsForSource('userSettings', {
+      model: model ?? undefined,
+    });
 
     let message = `Set model to ${chalk.bold(renderModelLabel(model))}`;
     if (effort !== undefined) {
@@ -184,6 +188,9 @@ function SetModelAndClose({
         mainLoopModel: modelValue,
         mainLoopModelForSession: null,
       }));
+      updateSettingsForSource('userSettings', {
+        model: modelValue ?? undefined,
+      });
       let message = `Set model to ${chalk.bold(renderModelLabel(modelValue))}`;
 
       let wasFastModeToggledOn;

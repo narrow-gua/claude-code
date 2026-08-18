@@ -1,7 +1,12 @@
 import capitalize from 'lodash-es/capitalize.js';
 import * as React from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { has1mContext, modelAllows1MContextToggle, modelHasDefault1MContext } from '../utils/context.js';
+import {
+  getContextWindowForModel,
+  has1mContext,
+  modelAllows1MContextToggle,
+  modelHasDefault1MContext,
+} from '../utils/context.js';
 import { useExitOnCtrlCDWithKeybindings } from 'src/hooks/useExitOnCtrlCDWithKeybindings.js';
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -30,11 +35,12 @@ import {
   modelDisplayString,
   parseUserSpecifiedModel,
 } from '../utils/model/model.js';
-import { getModelOptions } from '../utils/model/modelOptions.js';
+import { getModelOptions, type ModelOption } from '../utils/model/modelOptions.js';
 import { ConfigurableShortcutHint } from './ConfigurableShortcutHint.js';
 import { Select } from './CustomSelect/index.js';
 import { Byline, KeyboardShortcutHint, Pane } from '@anthropic/ink';
 import { effortLevelToSymbol } from './EffortIndicator.js';
+import { isGpt56FamilyModel } from '../utils/model/chatgptModels.js';
 
 export type Props = {
   initial: string | null;
@@ -69,17 +75,19 @@ export function ModelPicker({
   const setAppState = useSetAppState();
   const exitState = useExitOnCtrlCDWithKeybindings();
   const maxVisible = 10;
+  const isFastMode = useAppState(s => (isFastModeEnabled() ? s.fastMode : false));
+  const modelOptions = useMemo(() => getModelOptions(isFastMode ?? false), [isFastMode]);
 
   // Legacy persisted 1M aliases should focus their base slot instead of
   // creating a second "current model" row for an obsolete picker entry.
   const normalizedInitial = initial?.replace(/\[1m\]$/i, '') ?? null;
-  const initialValue = normalizedInitial === null ? NO_PREFERENCE : normalizedInitial;
+  const initialGroup = modelOptions.find(option => option.children?.some(child => child.value === normalizedInitial));
+  const initialValue = initialGroup?.value ?? (normalizedInitial === null ? NO_PREFERENCE : normalizedInitial);
   const [focusedValue, setFocusedValue] = useState<string | undefined>(initialValue);
-
-  const isFastMode = useAppState(s => (isFastModeEnabled() ? s.fastMode : false));
+  const [activeGroupValue, setActiveGroupValue] = useState<string | null>(null);
 
   const [marked1MValues, setMarked1MValues] = useState<Set<string>>(
-    () => new Set(has1mContext(initialValue) ? [initialValue.replace(/\[1m\]/i, '')] : []),
+    () => new Set(initial && has1mContext(initial) && normalizedInitial ? [normalizedInitial] : []),
   );
 
   const handleToggle1M = useCallback(() => {
@@ -107,14 +115,14 @@ export function ModelPicker({
     effortValue !== undefined ? convertEffortValueToLevel(effortValue) : undefined,
   );
 
-  // Memoize all derived values to prevent re-renders
-  const modelOptions = useMemo(() => getModelOptions(isFastMode ?? false), [isFastMode]);
-
   // Ensure the initial value is in the options list
   // This handles edge cases where the user's current model (e.g., 'haiku' for 3P users)
   // is not in the base options but should still be selectable and shown as selected
   const optionsWithInitial = useMemo(() => {
-    if (normalizedInitial !== null && !modelOptions.some(opt => opt.value === normalizedInitial)) {
+    const hasInitial = modelOptions.some(
+      opt => opt.value === normalizedInitial || opt.children?.some(child => child.value === normalizedInitial),
+    );
+    if (normalizedInitial !== null && !hasInitial) {
       return [
         ...modelOptions,
         {
@@ -127,17 +135,30 @@ export function ModelPicker({
     return modelOptions;
   }, [modelOptions, normalizedInitial]);
 
+  const activeGroup = useMemo(
+    () => optionsWithInitial.find(option => option.value === activeGroupValue && option.children?.length),
+    [activeGroupValue, optionsWithInitial],
+  );
+  const visibleOptions: ModelOption[] = activeGroup?.children ?? optionsWithInitial;
+
   const selectOptions = useMemo(
     () =>
-      optionsWithInitial.map(opt => ({
+      visibleOptions.map(opt => ({
         ...opt,
         value: opt.value === null ? NO_PREFERENCE : opt.value,
       })),
-    [optionsWithInitial],
+    [visibleOptions],
   );
+  const pageInitialValue = activeGroup
+    ? (activeGroup.children?.find(option => option.value === normalizedInitial)?.value ??
+      activeGroup.children?.[0]?.value)
+    : initialValue;
   const initialFocusValue = useMemo(
-    () => (selectOptions.some(_ => _.value === initialValue) ? initialValue : (selectOptions[0]?.value ?? undefined)),
-    [selectOptions, initialValue],
+    () =>
+      selectOptions.some(option => option.value === pageInitialValue)
+        ? (pageInitialValue ?? undefined)
+        : (selectOptions[0]?.value ?? undefined),
+    [selectOptions, pageInitialValue],
   );
   const visibleCount = Math.min(maxVisible, selectOptions.length);
   const hiddenCount = Math.max(0, selectOptions.length - visibleCount);
@@ -145,6 +166,8 @@ export function ModelPicker({
   const focusedModelName = selectOptions.find(opt => opt.value === focusedValue)?.label;
   const focusedModel = resolveOptionModel(focusedValue);
   const focusedHasDefault1M = focusedModel ? modelHasDefault1MContext(focusedModel) : false;
+  const focusedFixedCodexContext =
+    focusedModel && isGpt56FamilyModel(focusedModel) ? getContextWindowForModel(focusedModel) : undefined;
   const is1MMarked =
     focusedValue !== undefined &&
     focusedValue !== NO_PREFERENCE &&
@@ -196,6 +219,19 @@ export function ModelPicker({
   );
 
   function handleSelect(value: string): void {
+    const selectedGroup = optionsWithInitial.find(option => option.value === value && option.children?.length);
+    if (selectedGroup?.children?.length) {
+      const childValue =
+        selectedGroup.children.find(option => option.value === normalizedInitial)?.value ??
+        selectedGroup.children[0]!.value;
+      setActiveGroupValue(value);
+      setFocusedValue(childValue ?? undefined);
+      if (!hasToggledEffort && effortValue === undefined && childValue) {
+        setEffort(getDefaultEffortLevelForOption(childValue));
+      }
+      return;
+    }
+
     logEvent('tengu_model_command_menu_effort', {
       effort: effort as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     });
@@ -221,16 +257,27 @@ export function ModelPicker({
     onSelect(finalValue, selectedEffort);
   }
 
+  function handleCancel(): void {
+    if (activeGroup) {
+      setActiveGroupValue(null);
+      setFocusedValue(activeGroup.value ?? undefined);
+      return;
+    }
+    onCancel?.();
+  }
+
   const content = (
     <Box flexDirection="column">
       <Box flexDirection="column">
         <Box marginBottom={1} flexDirection="column">
           <Text color="remember" bold>
-            Select model
+            {activeGroup ? `Select ${activeGroup.label} model` : 'Select model'}
           </Text>
           <Text dimColor>
-            {headerText ??
-              'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context when available.'}
+            {activeGroup
+              ? `Choose a model in the ${activeGroup.label} group. Esc returns to model groups.`
+              : (headerText ??
+                'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context when available.')}
           </Text>
           {sessionModel && (
             <Text dimColor>
@@ -243,12 +290,13 @@ export function ModelPicker({
         <Box flexDirection="column" marginBottom={1}>
           <Box flexDirection="column">
             <Select
-              defaultValue={initialValue}
+              key={activeGroupValue ?? '__model_groups__'}
+              defaultValue={pageInitialValue ?? undefined}
               defaultFocusValue={initialFocusValue}
               options={selectOptions}
               onChange={handleSelect}
               onFocus={handleFocus}
-              onCancel={onCancel ?? (() => {})}
+              onCancel={handleCancel}
               visibleOptionCount={visibleCount}
             />
           </Box>
@@ -274,6 +322,10 @@ export function ModelPicker({
           {focusedHasDefault1M ? (
             <Text dimColor>
               <EffortLevelIndicator effort={'high'} /> 1M context included
+            </Text>
+          ) : focusedFixedCodexContext !== undefined ? (
+            <Text dimColor>
+              <EffortLevelIndicator effort={'high'} /> {Math.round(focusedFixedCodexContext / 1000)}K context included
             </Text>
           ) : is1MMarked ? (
             <Text dimColor>
@@ -314,7 +366,12 @@ export function ModelPicker({
           ) : (
             <Byline>
               <KeyboardShortcutHint shortcut="Enter" action="confirm" />
-              <ConfigurableShortcutHint action="select:cancel" context="Select" fallback="Esc" description="exit" />
+              <ConfigurableShortcutHint
+                action="select:cancel"
+                context="Select"
+                fallback="Esc"
+                description={activeGroup ? 'back' : 'exit'}
+              />
             </Byline>
           )}
         </Text>

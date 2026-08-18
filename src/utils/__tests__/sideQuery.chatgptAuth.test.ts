@@ -14,6 +14,10 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { logMock } from '../../../tests/mocks/log'
 import { debugMock } from '../../../tests/mocks/debug'
+import {
+  resetSettingsCache,
+  setSessionSettingsCache,
+} from '../settings/settingsCache.js'
 
 mock.module('src/utils/log.ts', logMock)
 mock.module('src/utils/debug.ts', debugMock)
@@ -152,6 +156,8 @@ function enableOpenAIProvider(): void {
 }
 
 beforeEach(() => {
+  resetSettingsCache()
+  setSessionSettingsCache({ settings: {}, errors: [] })
   for (const key of ENV_KEYS) {
     savedEnv[key] = process.env[key]
   }
@@ -195,6 +201,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  resetSettingsCache()
   globalThis.fetch = originalFetch
   for (const key of ENV_KEYS) {
     const value = savedEnv[key]
@@ -216,6 +223,28 @@ const classifierTool = {
 }
 
 describe('sideQuery OpenAI ChatGPT OAuth path', () => {
+  test('uses ChatGPT Responses for the Codex slot without a global provider switch', async () => {
+    delete process.env.CLAUDE_CODE_USE_OPENAI
+    delete process.env.OPENAI_AUTH_MODE
+    delete process.env.OPENAI_API_KEY
+    const { sideQuery } = await import('../sideQuery.js')
+
+    const result = await sideQuery({
+      querySource: 'auto_mode',
+      model: 'gpt-5.6-terra',
+      messages: [{ role: 'user', content: 'classify this action' }],
+      tools: [classifierTool as never],
+      tool_choice: { type: 'tool', name: 'classify_result' },
+    })
+
+    expect(getOpenAIClientCallCount).toBe(0)
+    expect(capturedFetch?.url).toContain(
+      'chatgpt.com/backend-api/codex/responses',
+    )
+    expect(capturedFetch?.body.model).toBe('gpt-5.6-terra')
+    expect(result.stop_reason).toBe('tool_use')
+  })
+
   test('uses ChatGPT Responses + OAuth, not empty-key Chat Completions', async () => {
     process.env.OPENAI_AUTH_MODE = 'chatgpt'
     delete process.env.OPENAI_API_KEY

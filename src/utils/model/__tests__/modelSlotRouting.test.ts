@@ -26,14 +26,60 @@ describe('model slot routing', () => {
     expect(getModelSlotForModel('glm-special', env)).toBe('glm')
   })
 
-  test('recognizes all seven slot families and strips 1m suffix', () => {
+  test('recognizes all eight slot families and strips 1m suffix', () => {
     expect(getModelSlotForModel('claude-haiku-4-5')).toBe('haiku')
     expect(getModelSlotForModel('claude-sonnet-5')).toBe('sonnet')
     expect(getModelSlotForModel('claude-opus-4-8[1m]')).toBe('opus')
     expect(getModelSlotForModel('claude-fable-5')).toBe('fable')
     expect(getModelSlotForModel('glm-5.2')).toBe('glm')
-    expect(getModelSlotForModel('grok-4.5')).toBe('grok')
+    expect(getModelSlotForModel('grok-4.6')).toBe('grok')
     expect(getModelSlotForModel('kimi-k3')).toBe('kimi')
+    expect(getModelSlotForModel('gpt-5.6-sol')).toBe('codex')
+    expect(getModelSlotForModel('gpt-5.6-terra[1m]')).toBe('codex')
+  })
+
+  test('routes the Codex model group through ChatGPT Responses by default', () => {
+    expect(
+      resolveModelSlotApiOverride('gpt-5.6-luna', undefined, 'firstParty'),
+    ).toEqual({
+      slot: 'codex',
+      provider: 'openai',
+      apiMode: 'chatgpt',
+    })
+  })
+
+  test('does not add an override to ordinary model slots', () => {
+    expect(
+      resolveModelSlotApiOverride('claude-opus-5', undefined, 'firstParty'),
+    ).toBeUndefined()
+    expect(
+      resolveModelSlotApiOverride('grok-4.6', undefined, 'grok'),
+    ).toBeUndefined()
+  })
+
+  test('resolves an explicit ChatGPT profile assigned to Codex', () => {
+    expect(
+      resolveModelSlotApiOverride(
+        'gpt-5.6-sol',
+        { codex: { profileId: 'subscription' } },
+        'firstParty',
+        {},
+        {
+          subscription: {
+            name: 'ChatGPT Subscription',
+            apiMode: 'chatgpt',
+            baseUrl: 'https://responses.example.com/v1',
+            authKey: 'profile-key',
+          },
+        },
+      ),
+    ).toEqual({
+      slot: 'codex',
+      provider: 'openai',
+      apiMode: 'chatgpt',
+      baseUrl: 'https://responses.example.com/v1',
+      authKey: 'profile-key',
+    })
   })
 
   test('resolves explicit protocol, URL, and key for a slot', () => {

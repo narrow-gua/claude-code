@@ -928,6 +928,7 @@ export async function main() {
       extractFlag('-c', { as: '--continue' });
       extractFlag('--continue');
       extractFlag('--resume', { hasValue: true });
+      extractFlag('-m', { hasValue: true, as: '--model' });
       extractFlag('--model', { hasValue: true });
     }
     // After pre-extraction, any remaining dash-arg at [1] is either -h/--help
@@ -1369,8 +1370,8 @@ async function run(): Promise<CommanderCommand> {
     )
     // @[MODEL LAUNCH]: Update the example model ID in the --model help text.
     .option(
-      '--model <model>',
-      `Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-opus-5').`,
+      '-m, --model <model>',
+      `Model for the current session. Use a slot (for example 'opus' or 'codex') or an exact model ID (for example 'gpt-5.6-terra').`,
     )
     .addOption(
       new Option('--effort <level>', `Effort level for the current session (low, medium, high, xhigh, max)`).argParser(
@@ -2233,6 +2234,16 @@ async function run(): Promise<CommanderCommand> {
       // This await replaces blocking existsSync/statSync calls that were already in
       // the startup path. Wall-clock time is unchanged; we just yield to the event
       // loop during the fs I/O instead of blocking it. See #19661.
+      if (feature('UNION_MODE')) {
+        const { setUnionToolAvailableForSession } =
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          require('./union/state.js') as typeof import('./union/state.js');
+        const { isUnionToolAllowedByBaseTools } =
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          require('./union/toolVisibility.js') as typeof import('./union/toolVisibility.js');
+        setUnionToolAvailableForSession(isUnionToolAllowedByBaseTools(baseTools));
+      }
+
       const initResult = await initializeToolPermissionContext({
         allowedToolsCli: allowedTools,
         disallowedToolsCli: disallowedTools,

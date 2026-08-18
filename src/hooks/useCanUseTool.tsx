@@ -34,6 +34,12 @@ import { handleSwarmWorkerPermission } from './toolPermission/handlers/swarmWork
 import { createPermissionContext, createPermissionQueueOps } from './toolPermission/PermissionContext.js';
 import { logPermissionDecision } from './toolPermission/permissionLogging.js';
 
+/* eslint-disable @typescript-eslint/no-require-imports */
+const getUnionPlannerDenial = feature('UNION_MODE')
+  ? (require('../union/permissions.js') as typeof import('../union/permissions.js')).getUnionPlannerDenial
+  : () => null;
+/* eslint-enable @typescript-eslint/no-require-imports */
+
 export type CanUseToolFn<Input extends Record<string, unknown> = Record<string, unknown>> = (
   tool: ToolType,
   input: Input,
@@ -49,6 +55,9 @@ function useCanUseTool(
 ): CanUseToolFn {
   return useCallback<CanUseToolFn>(
     async (tool, input, toolUseContext, assistantMessage, toolUseID, forceDecision) => {
+      const unionDenial = getUnionPlannerDenial(tool, input, toolUseContext.agentType);
+      if (unionDenial) return unionDenial;
+
       return new Promise(resolve => {
         const ctx = createPermissionContext(
           tool,

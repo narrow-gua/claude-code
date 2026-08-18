@@ -90,6 +90,9 @@ const monitorCmd = feature('MONITOR_TOOL')
 const coordinatorCmd = feature('COORDINATOR_MODE')
   ? require('./commands/coordinator.js').default
   : null
+const unionCmd = feature('UNION_MODE')
+  ? require('./commands/union/index.js').default
+  : null
 const forceSnip = feature('HISTORY_SNIP')
   ? require('./commands/force-snip.js').default
   : null
@@ -375,6 +378,7 @@ const COMMANDS = memoize((): Command[] => [
   ...(proactive ? [proactive] : []),
   ...(monitorCmd ? [monitorCmd] : []),
   ...(coordinatorCmd ? [coordinatorCmd] : []),
+  ...(unionCmd ? [unionCmd] : []),
   ...(briefCommand ? [briefCommand] : []),
   ...(assistantCommand ? [assistantCommand] : []),
   ...(bridge ? [bridge] : []),

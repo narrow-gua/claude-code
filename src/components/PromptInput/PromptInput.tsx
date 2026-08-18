@@ -83,6 +83,7 @@ import { cacheImagePath, storeImage } from '../../utils/imageStore.js';
 import { isMacosOptionChar, MACOS_OPTION_SPECIAL_CHARS } from '../../utils/keyboardShortcuts.js';
 import { logError } from '../../utils/log.js';
 import { isOpus1mMergeEnabled, modelDisplayString } from '../../utils/model/model.js';
+import { updateSettingsForSource } from '../../utils/settings/settings.js';
 import { cyclePermissionMode, getNextPermissionMode } from '../../utils/permissions/getNextPermissionMode.js';
 import { getPlatform } from '../../utils/platform.js';
 import type { ProcessUserInputContext } from '../../utils/processUserInput/processUserInput.js';
@@ -2170,6 +2171,9 @@ function PromptInput({
           // Turn off fast mode if switching to a model that doesn't support it
           ...(wasFastModeDisabled && { fastMode: false }),
         };
+      });
+      updateSettingsForSource('userSettings', {
+        model: model ?? undefined,
       });
       setShowModelPicker(false);
       const effectiveFastMode = (isFastMode ?? false) && !wasFastModeDisabled;

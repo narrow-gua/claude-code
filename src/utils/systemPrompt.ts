@@ -19,10 +19,25 @@ const proactiveModule =
   feature('PROACTIVE') || feature('KAIROS')
     ? (require('../proactive/index.js') as typeof import('../proactive/index.js'))
     : null
+const appendUnionPlannerPrompt = feature('UNION_MODE')
+  ? (require('../union/prompt.js') as typeof import('../union/prompt.js'))
+      .appendUnionPlannerPrompt
+  : (prompt: SystemPrompt): SystemPrompt => prompt
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 function isProactiveActive_SAFE_TO_CALL_ANYWHERE(): boolean {
   return proactiveModule?.isProactiveActive() ?? false
+}
+
+function appendPlannerPrompt(
+  systemPrompt: SystemPrompt,
+  toolUseContext: Pick<ToolUseContext, 'agentId'>,
+  includeUnionPlannerPrompt: boolean,
+): SystemPrompt {
+  if (!includeUnionPlannerPrompt) return systemPrompt
+  return appendUnionPlannerPrompt(systemPrompt, {
+    agentId: toolUseContext.agentId,
+  })
 }
 
 /**
@@ -45,16 +60,23 @@ export function buildEffectiveSystemPrompt({
   defaultSystemPrompt,
   appendSystemPrompt,
   overrideSystemPrompt,
+  includeUnionPlannerPrompt = false,
 }: {
   mainThreadAgentDefinition: AgentDefinition | undefined
-  toolUseContext: Pick<ToolUseContext, 'options'>
+  toolUseContext: Pick<ToolUseContext, 'options' | 'agentId'>
   customSystemPrompt: string | undefined
   defaultSystemPrompt: string[]
   appendSystemPrompt: string | undefined
   overrideSystemPrompt?: string | null
+  /** Main model turns opt in; utility/subagent prompt reconstruction stays unchanged. */
+  includeUnionPlannerPrompt?: boolean
 }): SystemPrompt {
   if (overrideSystemPrompt) {
-    return asSystemPrompt([overrideSystemPrompt])
+    return appendPlannerPrompt(
+      asSystemPrompt([overrideSystemPrompt]),
+      toolUseContext,
+      includeUnionPlannerPrompt,
+    )
   }
   // Coordinator mode: use coordinator prompt instead of default
   // Use inline env check instead of coordinatorModule to avoid circular
@@ -105,19 +127,27 @@ export function buildEffectiveSystemPrompt({
     (feature('PROACTIVE') || feature('KAIROS')) &&
     isProactiveActive_SAFE_TO_CALL_ANYWHERE()
   ) {
-    return asSystemPrompt([
-      ...defaultSystemPrompt,
-      `\n# Custom Agent Instructions\n${agentSystemPrompt}`,
-      ...(appendSystemPrompt ? [appendSystemPrompt] : []),
-    ])
+    return appendPlannerPrompt(
+      asSystemPrompt([
+        ...defaultSystemPrompt,
+        `\n# Custom Agent Instructions\n${agentSystemPrompt}`,
+        ...(appendSystemPrompt ? [appendSystemPrompt] : []),
+      ]),
+      toolUseContext,
+      includeUnionPlannerPrompt,
+    )
   }
 
-  return asSystemPrompt([
-    ...(agentSystemPrompt
-      ? [agentSystemPrompt]
-      : customSystemPrompt
-        ? [customSystemPrompt]
-        : defaultSystemPrompt),
-    ...(appendSystemPrompt ? [appendSystemPrompt] : []),
-  ])
+  return appendPlannerPrompt(
+    asSystemPrompt([
+      ...(agentSystemPrompt
+        ? [agentSystemPrompt]
+        : customSystemPrompt
+          ? [customSystemPrompt]
+          : defaultSystemPrompt),
+      ...(appendSystemPrompt ? [appendSystemPrompt] : []),
+    ]),
+    toolUseContext,
+    includeUnionPlannerPrompt,
+  )
 }

@@ -351,6 +351,9 @@ const proactiveModule = feature('PROACTIVE') || feature('KAIROS') ? require('../
 const PROACTIVE_NO_OP_SUBSCRIBE = (_cb: () => void) => () => {};
 const PROACTIVE_FALSE = () => false;
 const PROACTIVE_NULL = (): number | null => null;
+const unionStateModule = feature('UNION_MODE')
+  ? (require('../union/state.js') as typeof import('../union/state.js'))
+  : null;
 const SUGGEST_BG_PR_NOOP = (_p: string, _n: string): boolean => false;
 const useProactive =
   feature('PROACTIVE') || feature('KAIROS') ? require('../proactive/useProactive.js').useProactive : null;
@@ -955,6 +958,7 @@ export function REPL({
     proactiveModule?.subscribeToProactiveChanges ?? PROACTIVE_NO_OP_SUBSCRIBE,
     proactiveModule?.getNextTickAt ?? PROACTIVE_NULL,
   );
+  const unionStateVersion = unionStateModule?.getUnionStateVersion() ?? 0;
 
   // BriefTool.isEnabled() reads getUserMsgOptIn() from bootstrap state, which
   // /brief flips mid-session alongside isBriefOnly. The memo below needs a
@@ -966,7 +970,7 @@ export function REPL({
 
   const localTools = useMemo(
     () => getTools(toolPermissionContext),
-    [toolPermissionContext, proactiveActive, isBriefOnly],
+    [toolPermissionContext, proactiveActive, isBriefOnly, unionStateVersion],
   );
 
   useKickOffCheckAndDisableAutoModeIfNeeded();
@@ -2914,7 +2918,7 @@ export function REPL({
       const computeTools = () => {
         const state = store.getState();
         const assembled = assembleToolPool(state.toolPermissionContext, state.mcp.tools);
-        const merged = mergeAndFilterTools(combinedInitialTools, assembled, state.toolPermissionContext.mode);
+        const merged = mergeAndFilterTools(combinedInitialTools, assembled, state.toolPermissionContext);
         if (!mainThreadAgentDefinition) return merged;
         return resolveAgentTools(mainThreadAgentDefinition, merged, false, true).resolvedTools;
       };
@@ -3086,6 +3090,7 @@ export function REPL({
         customSystemPrompt,
         defaultSystemPrompt,
         appendSystemPrompt,
+        includeUnionPlannerPrompt: true,
       });
       toolUseContext.renderedSystemPrompt = systemPrompt;
 
@@ -3502,6 +3507,7 @@ export function REPL({
         customSystemPrompt,
         defaultSystemPrompt,
         appendSystemPrompt,
+        includeUnionPlannerPrompt: true,
       });
       toolUseContext.renderedSystemPrompt = systemPrompt;
 

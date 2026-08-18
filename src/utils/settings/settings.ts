@@ -541,6 +541,7 @@ export function migrateInlineSlotOverridesToProfiles(): {
     glm: 'GLM',
     grok: 'Grok',
     kimi: 'Kimi',
+    codex: 'Codex',
   } as const
   const profiles = { ...(settings.apiProfiles ?? {}) }
   const slotUpdates: Record<string, unknown> = {}

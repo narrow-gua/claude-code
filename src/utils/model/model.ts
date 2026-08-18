@@ -200,7 +200,7 @@ export function getDefaultHaikuModel(): ModelName {
  * they are not used automatically for background-task routing.
  */
 function getAdditionalModelSlot(
-  slot: 'FABLE' | 'GLM' | 'GROK' | 'KIMI',
+  slot: 'FABLE' | 'GLM' | 'GROK' | 'KIMI' | 'CODEX',
   fallback: string,
 ): ModelName {
   const provider = getAPIProvider()
@@ -224,11 +224,15 @@ export function getDefaultGlmModel(): ModelName {
 }
 
 export function getDefaultGrokModel(): ModelName {
-  return getAdditionalModelSlot('GROK', 'grok-4.5')
+  return getAdditionalModelSlot('GROK', 'grok-4.6')
 }
 
 export function getDefaultKimiModel(): ModelName {
   return getAdditionalModelSlot('KIMI', 'kimi-k3')
+}
+
+export function getDefaultCodexModel(): ModelName {
+  return getAdditionalModelSlot('CODEX', 'gpt-5.6-sol')
 }
 
 /**
@@ -469,6 +473,8 @@ export function getPublicModelDisplayName(model: ModelName): string | null {
       return 'Claude Fable 5'
     case 'glm-5.2':
       return 'GLM 5.2'
+    case 'grok-4.6':
+      return 'Grok 4.6'
     case 'grok-4.5':
       return 'Grok 4.5'
     case 'kimi-k3':
@@ -598,6 +604,8 @@ export function parseUserSpecifiedModel(
         return getDefaultGrokModel() + (has1mTag ? '[1m]' : '')
       case 'kimi':
         return getDefaultKimiModel() + (has1mTag ? '[1m]' : '')
+      case 'codex':
+        return getDefaultCodexModel() + (has1mTag ? '[1m]' : '')
       case 'opus':
         return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
       case 'best':

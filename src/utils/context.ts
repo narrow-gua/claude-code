@@ -7,6 +7,7 @@ import { resolveAntModel } from './model/antModels.js'
 import {
   CHATGPT_CODEX_MAX_OUTPUT_TOKENS,
   getChatGPTModelContextWindow,
+  isGpt56FamilyModel,
 } from './model/chatgptModels.js'
 import { getModelCapability } from './model/modelCapabilities.js'
 
@@ -51,6 +52,7 @@ export function modelSupports1M(model: string): boolean {
   }
   const canonical = getCanonicalName(model)
   return (
+    (getChatGPTModelContextWindow(model) ?? 0) >= 1_000_000 ||
     canonical.includes('claude-opus-5') ||
     canonical.includes('claude-sonnet-4') ||
     canonical.includes('opus-4-6') ||
@@ -63,12 +65,19 @@ export function modelHasDefault1MContext(model: string): boolean {
   if (is1mContextDisabled()) {
     return false
   }
-  return getCanonicalName(model).includes('claude-opus-5')
+  return (
+    getCanonicalName(model).includes('claude-opus-5') ||
+    (getChatGPTModelContextWindow(model) ?? 0) >= 1_000_000
+  )
 }
 
 /** Picker policy: native-1M models need no toggle; other providers may opt in. */
 export function modelAllows1MContextToggle(model: string): boolean {
-  return !is1mContextDisabled() && !modelHasDefault1MContext(model)
+  return (
+    !is1mContextDisabled() &&
+    !modelHasDefault1MContext(model) &&
+    !isGpt56FamilyModel(model)
+  )
 }
 
 export function getContextWindowForModel(
@@ -89,18 +98,8 @@ export function getContextWindowForModel(
     }
   }
 
-  // [1m] suffix — explicit client-side opt-in, respected over all detection
-  if (has1mContext(model)) {
-    return 1_000_000
-  }
-
-  if (modelHasDefault1MContext(model)) {
-    return 1_000_000
-  }
-
-  // GPT-5.6 family: OAuth/Codex ≈ 272k; API key path ≈ 1.05M (model card).
-  // Used for UI %, auto-compact thresholds, and local budgeting — not sent
-  // as a request field (Codex Responses does not take max_input_tokens).
+  // GPT-5.6 models have model-specific native limits. Ignore a manually
+  // supplied [1m] suffix so Luna is not incorrectly promoted from 400k.
   const chatgptContextWindow = getChatGPTModelContextWindow(model)
   if (chatgptContextWindow !== undefined) {
     if (
@@ -110,6 +109,15 @@ export function getContextWindowForModel(
       return MODEL_CONTEXT_WINDOW_DEFAULT
     }
     return chatgptContextWindow
+  }
+
+  // [1m] suffix — explicit client-side opt-in, respected over Claude detection
+  if (has1mContext(model)) {
+    return 1_000_000
+  }
+
+  if (modelHasDefault1MContext(model)) {
+    return 1_000_000
   }
 
   const cap = getModelCapability(model)

@@ -1508,7 +1508,7 @@ function runHeadlessStreaming(
       mergeAndFilterTools(
         [...tools, ...sdkTools, ...dynamicMcpState.tools],
         assembledTools,
-        appState.toolPermissionContext.mode,
+        appState.toolPermissionContext,
       ),
       'name',
     )

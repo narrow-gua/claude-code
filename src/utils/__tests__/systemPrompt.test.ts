@@ -1,4 +1,18 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, mock, test } from 'bun:test'
+
+let unionEnabled = false
+
+mock.module('bun:bundle', () => ({
+  feature: (name: string) => name === 'UNION_MODE',
+}))
+mock.module('../../union/prompt.js', () => ({
+  appendUnionPlannerPrompt: (
+    prompt: readonly string[],
+    options?: { agentId?: string },
+  ) =>
+    unionEnabled && !options?.agentId ? [...prompt, 'union overlay'] : prompt,
+}))
+
 import { buildEffectiveSystemPrompt } from '../systemPrompt'
 
 const defaultPrompt = ['You are a helpful assistant.', 'Follow instructions.']
@@ -15,6 +29,10 @@ function buildPrompt(overrides: Record<string, unknown> = {}) {
 }
 
 describe('buildEffectiveSystemPrompt', () => {
+  beforeEach(() => {
+    unionEnabled = false
+  })
+
   test('returns default system prompt when no overrides', () => {
     const result = buildPrompt()
     expect(Array.from(result)).toEqual(defaultPrompt)
@@ -23,6 +41,34 @@ describe('buildEffectiveSystemPrompt', () => {
   test('overrideSystemPrompt replaces everything', () => {
     const result = buildPrompt({ overrideSystemPrompt: 'override' })
     expect(Array.from(result)).toEqual(['override'])
+  })
+
+  test('does not append Union overlay unless the main turn opts in', () => {
+    unionEnabled = true
+    const result = buildPrompt({ overrideSystemPrompt: 'utility prompt' })
+    expect(Array.from(result)).toEqual(['utility prompt'])
+  })
+
+  test('appends Union overlay after an explicit override only when active', () => {
+    unionEnabled = true
+    const result = buildPrompt({
+      overrideSystemPrompt: 'override',
+      includeUnionPlannerPrompt: true,
+    })
+    expect(Array.from(result)).toEqual(['override', 'union overlay'])
+  })
+
+  test('does not append the Planner overlay for subagent contexts', () => {
+    unionEnabled = true
+    const result = buildPrompt({
+      toolUseContext: {
+        options: {},
+        agentId: 'agent-1',
+      },
+      overrideSystemPrompt: 'implementer',
+      includeUnionPlannerPrompt: true,
+    })
+    expect(Array.from(result)).toEqual(['implementer'])
   })
 
   test('customSystemPrompt replaces default', () => {

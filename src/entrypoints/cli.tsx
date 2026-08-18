@@ -74,6 +74,16 @@ if (feature('ABLATION_BASELINE') && process.env.CLAUDE_CODE_ABLATION_BASELINE) {
  * Fast-path for --version has zero imports beyond this file.
  */
 async function main(): Promise<void> {
+  // Accept the commonly typed single-dash long form while keeping Commander
+  // and every downstream argv consumer on one canonical spelling.
+  for (let index = 2; index < process.argv.length; index++) {
+    const arg = process.argv[index];
+    if (arg === '-model') {
+      process.argv[index] = '--model';
+    } else if (arg?.startsWith('-model=')) {
+      process.argv[index] = `--model=${arg.slice('-model='.length)}`;
+    }
+  }
   const args = process.argv.slice(2);
 
   // Fast-path for --version/-v: zero module loading needed
@@ -90,7 +100,7 @@ async function main(): Promise<void> {
   // `prism --model` without a value is a discovery command. Keep the normal
   // `--model <slot-or-id>` path unchanged while making every named slot and
   // its currently resolved model ID visible from the shell.
-  if (args.length === 1 && args[0] === '--model') {
+  if (args.length === 1 && (args[0] === '--model' || args[0] === '-m')) {
     profileCheckpoint('cli_list_model_slots_path');
     const { enableConfigs } = await import('../utils/config.js');
     enableConfigs();
@@ -100,9 +110,13 @@ async function main(): Promise<void> {
       getDefaultGrokModel,
       getDefaultHaikuModel,
       getDefaultKimiModel,
+      getDefaultCodexModel,
       getDefaultOpusModel,
       getDefaultSonnetModel,
     } = await import('../utils/model/model.js');
+    const { CHATGPT_CODEX_MODEL_OPTIONS, getChatGPTModelContextWindow } = await import(
+      '../utils/model/chatgptModels.js'
+    );
     const slots = [
       ['opus', getDefaultOpusModel()],
       ['sonnet', getDefaultSonnetModel()],
@@ -111,13 +125,20 @@ async function main(): Promise<void> {
       ['glm', getDefaultGlmModel()],
       ['grok', getDefaultGrokModel()],
       ['kimi', getDefaultKimiModel()],
+      ['codex', getDefaultCodexModel()],
     ];
 
     console.log('Available model slots:');
     for (const [slot, model] of slots) {
       console.log(`  ${slot.padEnd(8)} ${model}`);
     }
-    console.log('\nUsage: prism --model <slot>');
+    console.log('\nCodex model group:');
+    for (const option of CHATGPT_CODEX_MODEL_OPTIONS.filter(option => option.value.startsWith('gpt-5.6-'))) {
+      const contextWindow = getChatGPTModelContextWindow(option.value);
+      const contextLabel = contextWindow && contextWindow >= 1_000_000 ? '1.05M' : `${(contextWindow ?? 0) / 1000}K`;
+      console.log(`  ${option.value.padEnd(18)} ${contextLabel} context`);
+    }
+    console.log('\nUsage: prism -m <slot> | prism --model <slot>');
     return;
   }
 
@@ -129,8 +150,9 @@ async function main(): Promise<void> {
     const { enableConfigs } = await import('../utils/config.js');
     enableConfigs();
     const { getMainLoopModel } = await import('../utils/model/model.js');
-    const modelIdx = args.indexOf('--model');
-    const model = (modelIdx !== -1 && args[modelIdx + 1]) || getMainLoopModel();
+    const modelArg = args.find(arg => arg.startsWith('--model='))?.slice('--model='.length);
+    const modelIdx = args.findIndex(arg => arg === '--model' || arg === '-m');
+    const model = modelArg || (modelIdx !== -1 && args[modelIdx + 1]) || getMainLoopModel();
     const { getSystemPrompt } = await import('../constants/prompts.js');
     const prompt = await getSystemPrompt([], model);
     console.log(prompt.join('\n'));

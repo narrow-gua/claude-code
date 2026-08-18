@@ -141,6 +141,7 @@ type OAuthStatus =
     };
 
 const PASTE_HERE_MSG = 'Paste code here if prompted > ';
+const CHATGPT_CODEX_PROFILE_ID = 'chatgpt-codex-subscription';
 const MODEL_SLOT_LABELS: Record<ModelSlotName, string> = {
   haiku: 'Haiku',
   sonnet: 'Sonnet',
@@ -149,6 +150,7 @@ const MODEL_SLOT_LABELS: Record<ModelSlotName, string> = {
   glm: 'GLM',
   grok: 'Grok',
   kimi: 'Kimi',
+  codex: 'Codex',
 };
 const MODEL_SLOT_NAMES = Object.keys(MODEL_SLOT_LABELS) as ModelSlotName[];
 
@@ -911,6 +913,11 @@ function OAuthStatusMessage({
         { value: 'inherit', label: 'Inherit', description: 'Use the global API protocol with profile URL/key' },
         { value: 'anthropic', label: 'Anthropic', description: 'Anthropic Messages API compatible' },
         { value: 'openai', label: 'OpenAI', description: 'OpenAI Chat Completions compatible' },
+        {
+          value: 'chatgpt',
+          label: 'OpenAI Responses / Codex',
+          description: 'Use a custom URL/key, or ChatGPT subscription OAuth when left blank',
+        },
         { value: 'gemini', label: 'Gemini', description: 'Gemini Generate Content compatible' },
       ];
       return (
@@ -1682,18 +1689,28 @@ function OAuthStatusMessage({
             void openBrowser(deviceCode.verificationUrl);
             await completeChatGPTDeviceLogin(deviceCode, controller.signal);
             if (cancelled) return;
-            const env: Record<string, string> = {
-              OPENAI_AUTH_MODE: 'chatgpt',
-            };
             const settingsUpdate: Parameters<typeof updateSettingsForSource>[1] = {
-              modelType: 'openai',
-              env,
+              apiProfiles: {
+                [CHATGPT_CODEX_PROFILE_ID]: {
+                  name: 'ChatGPT Subscription',
+                  apiMode: 'chatgpt',
+                },
+              },
+              modelSlotOverrides: {
+                codex: { profileId: CHATGPT_CODEX_PROFILE_ID },
+              },
+              // Older builds enabled ChatGPT globally. The dedicated Codex
+              // slot keeps Anthropic/Grok/other OpenAI slots on their own
+              // routes, so remove only that legacy global switch.
+              env: {
+                OPENAI_AUTH_MODE: undefined,
+              } as unknown as Record<string, string>,
             };
             const { error } = updateSettingsForSource('userSettings', settingsUpdate);
             if (error) {
               throw new Error('Failed to save settings. Please try again.');
             }
-            for (const [k, v] of Object.entries(env)) process.env[k] = v;
+            delete process.env.OPENAI_AUTH_MODE;
             // Drop any cached OpenAI client built from prior OpenAI Compatible
             // env vars; the ChatGPT Subscription path bypasses the SDK client
             // entirely (uses createChatGPTResponsesStream) but a stale cached

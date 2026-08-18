@@ -179,6 +179,7 @@ function PromptInputFooter({
             historyFailedMatch={historyFailedMatch}
             onOpenTasksDialog={onOpenTasksDialog}
             responseLengthRef={responseLengthRef}
+            messages={messages}
           />
         </Box>
         <Box flexShrink={1} gap={1}>

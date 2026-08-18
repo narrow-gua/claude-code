@@ -131,7 +131,7 @@ describe('custom model slot picker', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key'
     const options = getModelOptions()
 
-    expect(options.slice(0, 8).map(option => option.value)).toEqual([
+    expect(options.slice(0, 9).map(option => option.value)).toEqual([
       null,
       'opus',
       'sonnet',
@@ -140,7 +140,13 @@ describe('custom model slot picker', () => {
       'glm',
       'grok',
       'kimi',
+      'codex',
     ])
+    expect(
+      options
+        .find(option => option.value === 'codex')
+        ?.children?.map(option => option.value),
+    ).toEqual(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'])
     expect(options.find(option => option.value === 'opus')?.label).toBe(
       'Claude Opus 5',
     )
@@ -171,6 +177,7 @@ describe('custom model slot picker', () => {
       'glm',
       'grok',
       'kimi',
+      'codex',
     ])
     expect(options.some(option => option.label.includes('Opus 4.7'))).toBe(
       false,

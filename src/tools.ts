@@ -138,6 +138,16 @@ const WebBrowserTool = feature('WEB_BROWSER_TOOL')
 const coordinatorModeModule = feature('COORDINATOR_MODE')
   ? (require('./coordinator/coordinatorMode.js') as typeof import('./coordinator/coordinatorMode.js'))
   : null
+const applyUnionToolVisibility = feature('UNION_MODE')
+  ? (
+      require('./union/toolVisibility.js') as typeof import('./union/toolVisibility.js')
+    ).applyUnionToolVisibility
+  : (tools: Tools): Tools => tools
+const getUnionPermissionToolNames = feature('UNION_MODE')
+  ? (
+      require('./union/toolVisibility.js') as typeof import('./union/toolVisibility.js')
+    ).getUnionPermissionToolNames
+  : (): string[] => []
 const SnipTool = feature('HISTORY_SNIP')
   ? require('@claude-code-best/builtin-tools/tools/SnipTool/SnipTool.js')
       .SnipTool
@@ -204,7 +214,10 @@ export function parseToolPreset(preset: string): ToolPreset | null {
 export function getToolsForDefaultPreset(): string[] {
   const tools = getAllBaseTools()
   const isEnabled = tools.map(tool => tool.isEnabled())
-  return tools.filter((_, i) => isEnabled[i]).map(tool => tool.name)
+  return [
+    ...tools.filter((_, i) => isEnabled[i]).map(tool => tool.name),
+    ...getUnionPermissionToolNames(),
+  ]
 }
 
 /**
@@ -315,7 +328,10 @@ export const getTools = (permissionContext: ToolPermissionContext): Tools => {
       ) {
         replSimple.push(TaskStopTool, getSendMessageTool())
       }
-      return filterToolsByDenyRules(replSimple, permissionContext)
+      return applyUnionToolVisibility(
+        filterToolsByDenyRules(replSimple, permissionContext),
+        permissionContext,
+      )
     }
     const simpleTools: Tool[] = [BashTool, FileReadTool, FileEditTool]
     // When coordinator mode is also active, include AgentTool and TaskStopTool
@@ -327,7 +343,10 @@ export const getTools = (permissionContext: ToolPermissionContext): Tools => {
     ) {
       simpleTools.push(AgentTool, TaskStopTool, getSendMessageTool())
     }
-    return filterToolsByDenyRules(simpleTools, permissionContext)
+    return applyUnionToolVisibility(
+      filterToolsByDenyRules(simpleTools, permissionContext),
+      permissionContext,
+    )
   }
 
   // Get all base tools and filter out special tools that get added conditionally
@@ -356,7 +375,10 @@ export const getTools = (permissionContext: ToolPermissionContext): Tools => {
   }
 
   const isEnabled = allowedTools.map(_ => _.isEnabled())
-  return allowedTools.filter((_, i) => isEnabled[i])
+  return applyUnionToolVisibility(
+    allowedTools.filter((_, i) => isEnabled[i]),
+    permissionContext,
+  )
 }
 
 /**

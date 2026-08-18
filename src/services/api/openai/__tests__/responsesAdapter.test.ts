@@ -1,9 +1,25 @@
-import { describe, expect, test } from 'bun:test'
-import { buildResponsesRequest, extractUsage } from '../responsesAdapter.js'
+import { describe, expect, mock, test } from 'bun:test'
+import { debugMock } from '../../../../../tests/mocks/debug'
 import { formatOpenAIPromptCacheKey } from '../openaiShared.js'
 import { calculateCacheHitRate } from '../../../../utils/cacheWarning.js'
 
+mock.module('src/utils/debug.ts', debugMock)
+
+const { buildResponsesRequest, createChatGPTResponsesStream, extractUsage } =
+  await import('../responsesAdapter.js')
+
 describe('buildResponsesRequest', () => {
+  test('rejects an empty model before any network request can be made', () => {
+    expect(() =>
+      buildResponsesRequest({
+        model: '   ',
+        messages: [{ role: 'user', content: 'hello' }],
+        tools: [],
+        toolChoice: undefined,
+      }),
+    ).toThrow('requires a non-empty model')
+  })
+
   test('includes max reasoning effort for ChatGPT Responses requests', () => {
     const request = buildResponsesRequest({
       model: 'gpt-5.6-sol',
@@ -93,6 +109,64 @@ describe('buildResponsesRequest', () => {
 
     expect(turn1.prompt_cache_key).toBe(turn2.prompt_cache_key)
     expect(turn1.prompt_cache_key).toBe('ccb:same-session')
+  })
+})
+
+describe('createChatGPTResponsesStream', () => {
+  test('uses a custom API profile instead of requiring ChatGPT OAuth', async () => {
+    let capturedUrl = ''
+    let capturedHeaders: HeadersInit | undefined
+    let capturedBody: Record<string, unknown> | undefined
+    let fetchCount = 0
+    const doneOnlyBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+        // Deliberately leave the connection open. Some compatible gateways
+        // keep HTTP alive after [DONE]; the adapter must still terminate.
+      },
+    })
+    const request = buildResponsesRequest({
+      model: 'gpt-5.6-sol',
+      messages: [{ role: 'user', content: 'hello' }],
+      tools: [],
+      toolChoice: undefined,
+    })
+
+    const stream = await createChatGPTResponsesStream({
+      request,
+      signal: new AbortController().signal,
+      baseUrl: 'https://responses.example.com/v1/',
+      authKey: 'test-profile-key',
+      querySource: 'workflow',
+      agentId: 'agent-test',
+      fetchOverride: (async (input, init) => {
+        fetchCount++
+        capturedUrl = String(input)
+        capturedHeaders = init?.headers
+        capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+        return new Response(doneOnlyBody, {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }) as typeof fetch,
+    })
+
+    expect(capturedUrl).toBe('https://responses.example.com/v1/responses')
+    expect(capturedHeaders).toMatchObject({
+      Authorization: 'Bearer test-profile-key',
+      'Content-Type': 'application/json',
+      'x-prism-query-source': 'workflow',
+      'x-prism-agent-id': 'agent-test',
+    })
+    expect(capturedHeaders).toMatchObject({
+      'x-client-request-id': expect.stringMatching(/^[0-9a-f-]{36}$/),
+    })
+    expect(capturedBody?.model).toBe('gpt-5.6-sol')
+    expect(fetchCount).toBe(1)
+    expect(await stream[Symbol.asyncIterator]().next()).toEqual({
+      done: true,
+      value: undefined,
+    })
   })
 })
 

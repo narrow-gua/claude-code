@@ -36,7 +36,7 @@ export const EnvironmentVariablesSchema = lazySchema(() =>
 export const ApiProfileSchema = lazySchema(() =>
   z.object({
     name: z.string().min(1),
-    apiMode: z.enum(['inherit', 'anthropic', 'openai', 'gemini']),
+    apiMode: z.enum(['inherit', 'anthropic', 'openai', 'gemini', 'chatgpt']),
     baseUrl: z.string().optional(),
     authKey: z.string().optional(),
   }),
@@ -46,7 +46,7 @@ export const ModelSlotApiOverrideSchema = lazySchema(() =>
   z.union([
     z.object({ profileId: z.string().min(1) }),
     z.object({
-      apiMode: z.enum(['inherit', 'anthropic', 'openai', 'gemini']),
+      apiMode: z.enum(['inherit', 'anthropic', 'openai', 'gemini', 'chatgpt']),
       baseUrl: z.string().optional(),
       authKey: z.string().optional(),
     }),
@@ -446,6 +446,7 @@ export const SettingsSchema = lazySchema(() =>
           glm: ModelSlotApiOverrideSchema().optional(),
           grok: ModelSlotApiOverrideSchema().optional(),
           kimi: ModelSlotApiOverrideSchema().optional(),
+          codex: ModelSlotApiOverrideSchema().optional(),
         })
         .optional()
         .describe(
@@ -869,6 +870,16 @@ export const SettingsSchema = lazySchema(() =>
         .optional()
         .describe(
           'When true, poor mode is active — extract_memories and prompt_suggestion are disabled to save tokens.',
+        ),
+      union: z
+        .object({
+          enabled: z.boolean().optional(),
+          defaultLevel: z.enum(['L0', 'L1', 'L2', 'L3']).optional(),
+          implementerModel: z.string().trim().min(1).optional(),
+        })
+        .optional()
+        .describe(
+          'Union planner/implementer authority settings. Disabled when absent or enabled is false.',
         ),
       showClearContextOnPlanAccept: z
         .boolean()

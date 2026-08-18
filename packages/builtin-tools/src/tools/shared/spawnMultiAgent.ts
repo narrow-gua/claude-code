@@ -36,14 +36,17 @@ import { isCustomAgent } from '../AgentTool/loadAgentsDir.js'
 
 function getDefaultTeammateModel(leaderModel: string | null): string {
   const configured = getGlobalConfig().teammateDefaultModel
-  if (configured === null) {
-    // User picked "Default" in the /config picker — follow the leader.
-    return leaderModel ?? getHardcodedTeammateModelFallback()
-  }
   if (configured !== undefined) {
-    return parseUserSpecifiedModel(configured)
+    // `null` is the explicit "Default" choice — follow the leader.
+    return configured === null
+      ? (leaderModel ?? getHardcodedTeammateModelFallback())
+      : parseUserSpecifiedModel(configured)
   }
-  return getHardcodedTeammateModelFallback()
+
+  // An unset preference also follows the leader. In particular, non-Claude
+  // model groups (Codex, Grok, etc.) must not silently route teammates through
+  // the hardcoded Claude fallback and a different API profile.
+  return leaderModel ?? getHardcodedTeammateModelFallback()
 }
 
 /**

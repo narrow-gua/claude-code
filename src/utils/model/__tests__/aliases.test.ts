@@ -19,6 +19,7 @@ describe('isModelAlias', () => {
     expect(isModelAlias('glm')).toBe(true)
     expect(isModelAlias('grok')).toBe(true)
     expect(isModelAlias('kimi')).toBe(true)
+    expect(isModelAlias('codex')).toBe(true)
   })
 
   test('returns true for "best"', () => {
@@ -61,6 +62,10 @@ describe('isModelFamilyAlias', () => {
 
   test('returns true for "haiku"', () => {
     expect(isModelFamilyAlias('haiku')).toBe(true)
+  })
+
+  test('returns true for "codex"', () => {
+    expect(isModelFamilyAlias('codex')).toBe(true)
   })
 
   test('returns false for "best"', () => {

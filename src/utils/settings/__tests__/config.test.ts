@@ -74,6 +74,21 @@ describe('SettingsSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  test('accepts a ChatGPT profile assigned to the Codex slot', () => {
+    const result = SettingsSchema().safeParse({
+      apiProfiles: {
+        subscription: {
+          name: 'ChatGPT Subscription',
+          apiMode: 'chatgpt',
+        },
+      },
+      modelSlotOverrides: {
+        codex: { profileId: 'subscription' },
+      },
+    })
+    expect(result.success).toBe(true)
+  })
+
   test('rejects an unsupported slot API mode', () => {
     const result = SettingsSchema().safeParse({
       modelSlotOverrides: {

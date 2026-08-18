@@ -9,20 +9,18 @@ export const CHATGPT_CODEX_DEFAULT_MODEL = 'gpt-5.6-sol'
 /** Fast/small default for lighter tasks. */
 export const CHATGPT_CODEX_FAST_MODEL = 'gpt-5.6-luna'
 
-/**
- * ChatGPT OAuth / Codex subscription practical context window.
- * Codex with ChatGPT login is product-limited to ~272k (not the full API 1.05M).
- */
-export const CHATGPT_OAUTH_CONTEXT_WINDOW = 272_000
+/** GPT-5.6 Sol/Terra context window. Long-context pricing starts above 272k. */
+export const CHATGPT_SOL_TERRA_CONTEXT_WINDOW = 1_050_000
 
-/**
- * GPT-5.6 family context window on the OpenAI API model card (API key path).
- * Long-context pricing applies above 272k input tokens.
- */
-export const CHATGPT_API_CONTEXT_WINDOW = 1_050_000
+/** GPT-5.6 Luna uses a smaller fixed context window. */
+export const CHATGPT_LUNA_CONTEXT_WINDOW = 400_000
 
-/** @deprecated Use CHATGPT_OAUTH_CONTEXT_WINDOW or CHATGPT_API_CONTEXT_WINDOW. */
-export const CHATGPT_CODEX_CONTEXT_WINDOW = CHATGPT_OAUTH_CONTEXT_WINDOW
+/** @deprecated Use the model-specific context constants. */
+export const CHATGPT_OAUTH_CONTEXT_WINDOW = CHATGPT_SOL_TERRA_CONTEXT_WINDOW
+/** @deprecated Use the model-specific context constants. */
+export const CHATGPT_API_CONTEXT_WINDOW = CHATGPT_SOL_TERRA_CONTEXT_WINDOW
+/** @deprecated Use the model-specific context constants. */
+export const CHATGPT_CODEX_CONTEXT_WINDOW = CHATGPT_SOL_TERRA_CONTEXT_WINDOW
 
 /** Official GPT-5.6 family max output tokens (OpenAI model card). */
 export const CHATGPT_CODEX_MAX_OUTPUT_TOKENS = 128_000
@@ -114,16 +112,15 @@ export function isChatGPTCodexReasoningModel(model: string): boolean {
  * Context window for GPT-5.6 models used by CCB for local budgeting
  * (status bar %, auto-compact thresholds). Not sent as a request field.
  *
- * - ChatGPT OAuth / Codex backend: 272k (subscription product limit)
- * - API key / OpenAI-compatible using gpt-5.6-*: 1.05M (model card)
+ * - Sol and Terra: 1.05M
+ * - Luna: 400k
  */
 export function getChatGPTModelContextWindow(
   model: string,
 ): number | undefined {
-  if (!isGpt56FamilyModel(model)) {
-    return undefined
-  }
-  return isChatGPTAuthMode()
-    ? CHATGPT_OAUTH_CONTEXT_WINDOW
-    : CHATGPT_API_CONTEXT_WINDOW
+  const normalized = normalizeChatGPTModelId(model)
+  if (!isGpt56FamilyModel(normalized)) return undefined
+  return normalized === 'gpt-5.6-luna'
+    ? CHATGPT_LUNA_CONTEXT_WINDOW
+    : CHATGPT_SOL_TERRA_CONTEXT_WINDOW
 }

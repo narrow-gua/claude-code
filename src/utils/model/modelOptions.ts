@@ -28,6 +28,7 @@ import {
   getDefaultGlmModel,
   getDefaultGrokModel,
   getDefaultKimiModel,
+  getDefaultCodexModel,
   getDefaultMainLoopModelSetting,
   getMarketingNameForModel,
   getUserSpecifiedModelSetting,
@@ -52,6 +53,7 @@ export type ModelOption = {
   label: string
   description: string
   descriptionForModel?: string
+  children?: ModelOption[]
 }
 
 export function getDefaultOptionForUser(fastMode = false): ModelOption {
@@ -624,6 +626,20 @@ export function getModelOptions(fastMode = false): ModelOption[] {
       description: `Kimi slot (${getDefaultKimiModel()})`,
       descriptionForModel: `${renderModelName(getDefaultKimiModel())} (${getDefaultKimiModel()})`,
     },
+    {
+      value: 'codex',
+      label: 'Codex',
+      description: `Codex model group (${getDefaultCodexModel()} default)`,
+      descriptionForModel: `Codex model group (${getDefaultCodexModel()} default)`,
+      children: CHATGPT_CODEX_MODEL_OPTIONS.filter(model =>
+        model.value.startsWith('gpt-5.6-'),
+      ).map(model => ({
+        value: model.value,
+        label: model.label,
+        description: model.description,
+        descriptionForModel: `${model.description} (${model.value})`,
+      })),
+    },
   ]
   const options = [defaultOption, ...slotOptions]
 
@@ -707,8 +723,15 @@ function filterModelOptionsByAllowlist(options: ModelOption[]): ModelOption[] {
   if (!settings.availableModels) {
     return options // No restrictions
   }
-  return options.filter(
-    opt =>
-      opt.value === null || (opt.value !== null && isModelAllowed(opt.value)),
-  )
+  return options.flatMap(option => {
+    if (option.value === null) return [option]
+    if (!option.children?.length) {
+      return isModelAllowed(option.value) ? [option] : []
+    }
+    if (isModelAllowed(option.value)) return [option]
+    const children = option.children.filter(
+      child => child.value !== null && isModelAllowed(child.value),
+    )
+    return children.length > 0 ? [{ ...option, children }] : []
+  })
 }

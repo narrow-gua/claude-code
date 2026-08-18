@@ -79,19 +79,19 @@ const call: LocalCommandCall = async (args, _context) => {
 
   if (arg.startsWith('use ')) {
     const match = rawArg.match(
-      /^use\s+(all|haiku|sonnet|opus|fable|glm|grok|kimi)\s+(.+)$/i,
+      /^use\s+(all|haiku|sonnet|opus|fable|glm|grok|kimi|codex)\s+(.+)$/i,
     )
     if (!match) {
       return {
         type: 'text',
         value:
-          'Usage: /api use <all|haiku|sonnet|opus|fable|glm|grok|kimi> <profile-name-or-id|inherit>',
+          'Usage: /api use <all|haiku|sonnet|opus|fable|glm|grok|kimi|codex> <profile-name-or-id|inherit>',
       }
     }
     const slot = match[1]!.toLowerCase()
     const targetSlots =
       slot === 'all'
-        ? ['haiku', 'sonnet', 'opus', 'fable', 'glm', 'grok', 'kimi']
+        ? ['haiku', 'sonnet', 'opus', 'fable', 'glm', 'grok', 'kimi', 'codex']
         : [slot]
     const targetLabel = slot === 'all' ? 'all model slots' : slot
     const inheritVerb = slot === 'all' ? 'inherit' : 'inherits'

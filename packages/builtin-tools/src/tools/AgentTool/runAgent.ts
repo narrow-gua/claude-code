@@ -261,6 +261,8 @@ export async function* runAgent({
   canUseTool,
   isAsync,
   canShowPermissionPrompts,
+  requireCanUseTool,
+  ignoreGlobalSubagentModel,
   forkContextMessages,
   querySource,
   override,
@@ -285,6 +287,10 @@ export async function* runAgent({
   /** Whether this agent can show permission prompts. Defaults to !isAsync.
    * Set to true for in-process teammates that run async but share the terminal. */
   canShowPermissionPrompts?: boolean
+  /** Force every tool call through canUseTool even when a hook auto-approves it. */
+  requireCanUseTool?: boolean
+  /** Resolve this agent's model independently of CLAUDE_CODE_SUBAGENT_MODEL. */
+  ignoreGlobalSubagentModel?: boolean
   forkContextMessages?: Message[]
   querySource: QuerySource
   override?: {
@@ -351,6 +357,7 @@ export async function* runAgent({
     toolUseContext.options.mainLoopModel,
     model,
     permissionMode,
+    { ignoreGlobalSubagentModel },
   )
 
   const agentId = override?.agentId ? override.agentId : createAgentId()
@@ -720,6 +727,7 @@ export async function* runAgent({
     criticalSystemReminder_EXPERIMENTAL:
       agentDefinition.criticalSystemReminder_EXPERIMENTAL,
     contentReplacementState,
+    requireCanUseTool,
   })
 
   // Preserve tool use results for subagents with viewable transcripts (in-process teammates)

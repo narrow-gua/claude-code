@@ -31,6 +31,15 @@ import { checkRuleBasedPermissions } from '../../utils/permissions/permissions.j
 import { formatError } from '../../utils/toolErrors.js'
 import { isMcpTool } from '../mcp/utils.js'
 import type { McpServerType, MessageUpdateLazy } from './toolExecution.js'
+import { feature } from 'bun:bundle'
+
+/* eslint-disable @typescript-eslint/no-require-imports */
+const getUnionPlannerDenial = feature('UNION_MODE')
+  ? (
+      require('../../union/permissions.js') as typeof import('../../union/permissions.js')
+    ).getUnionPlannerDenial
+  : () => null
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 export type PostToolUseHooksResult<Output> =
   | MessageUpdateLazy<AttachmentMessage | ProgressMessage<HookProgress>>
@@ -354,6 +363,14 @@ export async function resolveHookPermissionDecision(
 
   if (hookPermissionResult?.behavior === 'allow') {
     const hookInput = hookPermissionResult.updatedInput ?? input
+    const unionDenial = getUnionPlannerDenial(
+      tool,
+      hookInput,
+      toolUseContext.agentType,
+    )
+    if (unionDenial) {
+      return { decision: unionDenial, input: hookInput }
+    }
 
     // Hook provided updatedInput for an interactive tool — the hook IS the
     // user interaction (e.g. headless wrapper that collected AskUserQuestion
@@ -427,6 +444,14 @@ export async function resolveHookPermissionDecision(
     hookPermissionResult.updatedInput
       ? hookPermissionResult.updatedInput
       : input
+  const unionDenial = getUnionPlannerDenial(
+    tool,
+    askInput,
+    toolUseContext.agentType,
+  )
+  if (unionDenial) {
+    return { decision: unionDenial, input: askInput }
+  }
   return {
     decision: await canUseTool(
       tool,

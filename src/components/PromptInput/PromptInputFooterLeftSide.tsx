@@ -11,6 +11,7 @@ import * as React from 'react';
 import figures from 'figures';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { VimMode, PromptInputMode } from '../../types/textInputTypes.js';
+import type { Message } from '../../types/message.js';
 import type { ToolPermissionContext } from '../../Tool.js';
 import { isVimModeEnabled } from './utils.js';
 import { useShortcutDisplay } from '../../keybindings/useShortcutDisplay.js';
@@ -30,7 +31,7 @@ import { isAgentSwarmsEnabled } from '../../utils/agentSwarmsEnabled.js';
 import { TeamStatus } from '../teams/TeamStatus.js';
 import { isInProcessEnabled } from '../../utils/swarm/backends/registry.js';
 import { useAppState, useAppStateStore } from 'src/state/AppState.js';
-import { getIsRemoteMode } from '../../bootstrap/state.js';
+import { getIsRemoteMode, getSdkBetas } from '../../bootstrap/state.js';
 import HistorySearchInput from './HistorySearchInput.js';
 import { usePrStatus } from '../../hooks/usePrStatus.js';
 import { Byline, KeyboardShortcutHint } from '@anthropic/ink';
@@ -45,9 +46,10 @@ import { isXtermJs, useHasSelection, useSelection } from '@anthropic/ink';
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js';
 import { getPlatform } from '../../utils/platform.js';
 import { PrBadge } from '../PrBadge.js';
-import { getTotalInputTokens, getTotalOutputTokens } from '../../cost-tracker.js';
 import { useMainLoopModel } from '../../hooks/useMainLoopModel.js';
 import { renderModelName } from '../../utils/model/model.js';
+import { getContextWindowForModel } from '../../utils/context.js';
+import { getCurrentUsage } from '../../utils/tokens.js';
 
 // Dead code elimination: conditional import for proactive mode
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -60,17 +62,8 @@ const MAX_VOICE_HINT_SHOWS = 3;
 const TOKEN_RATE_UPDATE_INTERVAL_MS = 1_000;
 const GOAL_TICK_INTERVAL_MS = 1_000;
 
-function useTokenStats(
-  responseLengthRef: React.RefObject<number>,
-  isLoading: boolean,
-): {
-  totalTokens: number;
-  tokensPerSecond: number;
-} {
-  const [stats, setStats] = useState(() => ({
-    totalTokens: getTotalInputTokens() + getTotalOutputTokens(),
-    tokensPerSecond: 0,
-  }));
+function useTokenRate(responseLengthRef: React.RefObject<number>, isLoading: boolean): number {
+  const [tokensPerSecond, setTokensPerSecond] = useState(0);
   const previousSampleRef = useRef({ responseLength: responseLengthRef.current, sampledAt: Date.now() });
 
   useEffect(() => {
@@ -79,16 +72,11 @@ function useTokenStats(
       const responseLength = responseLengthRef.current;
       const elapsedSeconds = Math.max((now - previousSampleRef.current.sampledAt) / 1000, 0.001);
       const streamedCharacters = Math.max(responseLength - previousSampleRef.current.responseLength, 0);
-      const tokensPerSecond = isLoading ? streamedCharacters / 4 / elapsedSeconds : 0;
-      const totalTokens = getTotalInputTokens() + getTotalOutputTokens();
+      const nextRate = isLoading ? streamedCharacters / 4 / elapsedSeconds : 0;
 
       previousSampleRef.current = { responseLength, sampledAt: now };
-      setStats(previous => {
-        const roundedRate = Math.round(tokensPerSecond * 10) / 10;
-        return previous.totalTokens === totalTokens && previous.tokensPerSecond === roundedRate
-          ? previous
-          : { totalTokens, tokensPerSecond: roundedRate };
-      });
+      const roundedRate = Math.round(nextRate * 10) / 10;
+      setTokensPerSecond(previous => (previous === roundedRate ? previous : roundedRate));
     }
 
     previousSampleRef.current = { responseLength: responseLengthRef.current, sampledAt: Date.now() };
@@ -97,7 +85,7 @@ function useTokenStats(
     return () => clearInterval(timer);
   }, [isLoading, responseLengthRef]);
 
-  return stats;
+  return tokensPerSecond;
 }
 
 type Props = {
@@ -122,6 +110,7 @@ type Props = {
   historyFailedMatch: boolean;
   onOpenTasksDialog?: (taskId?: string) => void;
   responseLengthRef: React.RefObject<number>;
+  messages: Message[];
 };
 
 function ProactiveCountdown(): React.ReactNode {
@@ -221,6 +210,7 @@ export function PromptInputFooterLeftSide({
   historyFailedMatch,
   onOpenTasksDialog,
   responseLengthRef,
+  messages,
 }: Props): React.ReactNode {
   if (exitMessage.show) {
     return (
@@ -260,6 +250,7 @@ export function PromptInputFooterLeftSide({
         tmuxSelected={tmuxSelected}
         onOpenTasksDialog={onOpenTasksDialog}
         responseLengthRef={responseLengthRef}
+        messages={messages}
       />
     </Box>
   );
@@ -276,6 +267,7 @@ type ModeIndicatorProps = {
   teammateFooterIndex?: number;
   onOpenTasksDialog?: (taskId?: string) => void;
   responseLengthRef: React.RefObject<number>;
+  messages: Message[];
 };
 
 function ModeIndicator({
@@ -289,6 +281,7 @@ function ModeIndicator({
   teammateFooterIndex,
   onOpenTasksDialog,
   responseLengthRef,
+  messages,
 }: ModeIndicatorProps): React.ReactNode {
   const { columns } = useTerminalSize();
   const modeCycleShortcut = useShortcutDisplay('chat:cycleMode', 'Chat', 'shift+tab');
@@ -360,7 +353,12 @@ function ModeIndicator({
   }, [voiceEnabled, voiceHintUnderCap]);
   const isKillAgentsConfirmShowing = useAppState(s => s.notifications.current?.key === 'kill-agents-confirm');
   const mainLoopModel = useMainLoopModel();
-  const tokenStats = useTokenStats(responseLengthRef, isLoading);
+  const tokensPerSecond = useTokenRate(responseLengthRef, isLoading);
+  const currentUsage = useMemo(() => getCurrentUsage(messages), [messages]);
+  const contextTokens = currentUsage
+    ? currentUsage.input_tokens + currentUsage.cache_creation_input_tokens + currentUsage.cache_read_input_tokens
+    : 0;
+  const contextWindow = getContextWindowForModel(mainLoopModel, getSdkBetas());
 
   // Derive team info from teamContext (no filesystem I/O needed)
   // Match the same logic as TeamStatus to avoid trailing separator
@@ -446,8 +444,8 @@ function ModeIndicator({
       ? [<PrBadge key="pr-status" number={prStatus.number!} url={prStatus.url!} reviewState={prStatus.reviewState!} />]
       : []),
     <Text key="model-token-stats" dimColor>
-      {renderModelName(mainLoopModel)} · {formatTokens(tokenStats.totalTokens)} tokens ·{' '}
-      {tokenStats.tokensPerSecond.toFixed(1)} tok/s
+      {renderModelName(mainLoopModel)} · {formatTokens(contextTokens)}/{formatTokens(contextWindow)} context ·{' '}
+      {tokensPerSecond.toFixed(1)} tok/s
     </Text>,
     // Goal elapsed indicator — compact "goal (XhYmin)" after token stats
     ...(feature('GOAL') &&

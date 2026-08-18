@@ -30,7 +30,11 @@ import {
 import { getModelBetas, modelSupportsStructuredOutputs } from './betas.js'
 import { logForDebugging } from './debug.js'
 import { errorMessage } from './errors.js'
-import { getAPIProvider } from './model/providers.js'
+import {
+  getAPIProvider,
+  getAPIProviderForModel,
+  getModelSlotApiOverride,
+} from './model/providers.js'
 import { normalizeModelStringForAPI } from './model/model.js'
 import { getOpenAIClient } from '../services/api/openai/client.js'
 import { getGrokClient } from '../services/api/grok/client.js'
@@ -187,7 +191,7 @@ export async function sideQuery(opts: SideQueryOptions): Promise<BetaMessage> {
     stop_sequences,
   } = opts
 
-  const provider = getAPIProvider()
+  const provider = getAPIProviderForModel(model)
   if (provider === 'openai' || provider === 'grok') {
     return sideQueryViaOpenAICompatible(opts)
   }
@@ -567,6 +571,8 @@ async function sideQueryViaChatGPTResponses(
   }>,
   openaiTools: unknown[] | undefined,
   openaiToolChoice: unknown,
+  baseUrl?: string,
+  authKey?: string,
 ): Promise<BetaMessage> {
   const start = Date.now()
   const request = buildResponsesRequest({
@@ -579,6 +585,9 @@ async function sideQueryViaChatGPTResponses(
   const rawStream = await createChatGPTResponsesStream({
     request,
     signal: opts.signal ?? new AbortController().signal,
+    baseUrl,
+    authKey,
+    querySource: opts.querySource,
   })
   const adapted = adaptResponsesStreamToAnthropic(rawStream, openaiModel)
   const betaMessage = await collectAnthropicStreamToBetaMessage(
@@ -637,7 +646,8 @@ async function sideQueryViaOpenAICompatible(
     signal,
   } = opts
 
-  const provider = getAPIProvider()
+  const apiOverride = getModelSlotApiOverride(model)
+  const provider = apiOverride?.provider ?? getAPIProvider()
   const normalizedModel = normalizeModelStringForAPI(model)
 
   // Resolve model name per provider
@@ -669,13 +679,18 @@ async function sideQueryViaOpenAICompatible(
     : undefined
 
   // ChatGPT subscription auth: use Responses API + OAuth, never empty API key.
-  if (provider === 'openai' && isChatGPTAuthEnabled()) {
+  if (
+    provider === 'openai' &&
+    (isChatGPTAuthEnabled() || apiOverride?.apiMode === 'chatgpt')
+  ) {
     return sideQueryViaChatGPTResponses(
       opts,
       openaiModel,
       openaiMessages,
       openaiTools,
       openaiToolChoice,
+      apiOverride?.baseUrl,
+      apiOverride?.authKey,
     )
   }
 
@@ -684,7 +699,11 @@ async function sideQueryViaOpenAICompatible(
   const client: import('openai').default =
     provider === 'grok'
       ? getGrokClient({ maxRetries: opts.maxRetries ?? 2 })
-      : getOpenAIClient({ maxRetries: opts.maxRetries ?? 2 })
+      : getOpenAIClient({
+          maxRetries: opts.maxRetries ?? 2,
+          apiKey: apiOverride?.authKey,
+          baseURL: apiOverride?.baseUrl,
+        })
 
   const start = Date.now()
 

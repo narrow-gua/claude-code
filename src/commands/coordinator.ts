@@ -43,6 +43,16 @@ const coordinator = {
             ],
           })
         } else {
+          const unionModule = feature('UNION_MODE')
+            ? (require('../union/state.js') as typeof import('../union/state.js'))
+            : null
+          if (unionModule?.isUnionModeActive()) {
+            onDone(
+              'Coordinator mode was not enabled because Union mode is active. Disable Union first.',
+              { display: 'system' },
+            )
+            return null
+          }
           // Enable: set the env var
           process.env.CLAUDE_CODE_COORDINATOR_MODE = '1'
           onDone(

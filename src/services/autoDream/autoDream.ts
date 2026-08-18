@@ -27,6 +27,7 @@ import { logEvent } from '../analytics/index.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../analytics/growthbook.js'
 import { isAutoMemoryEnabled, getAutoMemPath } from '../../memdir/paths.js'
 import { isAutoDreamEnabled } from './config.js'
+import { getAPIProviderForModel } from '../../utils/model/providers.js'
 import { getProjectDir } from '../../utils/sessionStorage.js'
 import {
   getOriginalCwd,
@@ -93,11 +94,11 @@ function getConfig(): AutoDreamConfig {
   }
 }
 
-function isGateOpen(): boolean {
+function isGateOpen(model: string): boolean {
   if (getKairosActive()) return false // KAIROS mode uses disk-skill dream
   if (getIsRemoteMode()) return false
   if (!isAutoMemoryEnabled()) return false
-  return isAutoDreamEnabled()
+  return isAutoDreamEnabled(getAPIProviderForModel(model))
 }
 
 // Ant-build-only test override. Bypasses enabled/time/session gates but NOT
@@ -126,7 +127,8 @@ export function initAutoDream(): void {
   runner = async function runAutoDream(context, appendSystemMessage) {
     const cfg = getConfig()
     const force = isForced()
-    if (!force && !isGateOpen()) return
+    if (!force && !isGateOpen(context.toolUseContext.options.mainLoopModel))
+      return
 
     // --- Time gate ---
     let lastAt: number

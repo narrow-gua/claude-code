@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
+import { logForDebugging } from '../../../utils/debug.js'
 import { getValidChatGPTAuth } from './chatgptAuth.js'
 import { getOpenAIPromptCacheKey } from './openaiShared.js'
 
@@ -179,12 +180,16 @@ export function buildResponsesRequest(params: {
   /** Override for tests; production uses the current CCB session id. */
   promptCacheKey?: string
 }): ResponsesRequest {
+  const model = params.model.trim()
+  if (!model) {
+    throw new Error('OpenAI Responses API request requires a non-empty model')
+  }
   const { input, instructions } = convertMessagesToResponsesInput(
     params.messages,
   )
   const tools = convertToolsToResponses(params.tools)
   return {
-    model: params.model,
+    model,
     stream: true,
     store: false,
     input,
@@ -223,7 +228,8 @@ async function* parseSSE(
         .filter(line => line.startsWith('data:'))
         .map(line => line.slice(5).trimStart())
         .join('\n')
-      if (data && data !== '[DONE]') {
+      if (data === '[DONE]') return
+      if (data) {
         const parsed = JSON.parse(data) as unknown
         if (parsed && typeof parsed === 'object') {
           yield parsed as Record<string, unknown>
@@ -486,34 +492,69 @@ export async function createChatGPTResponsesStream(params: {
   request: ResponsesRequest
   signal: AbortSignal
   fetchOverride?: typeof fetch
+  baseUrl?: string
+  authKey?: string
+  /** Non-sensitive call-site label used to correlate gateway requests. */
+  querySource?: string
+  /** Present for sub-agent/workflow calls; omitted for the main thread. */
+  agentId?: string
 }): Promise<AsyncIterable<Record<string, unknown>>> {
-  const auth = await getValidChatGPTAuth()
+  const model = params.request.model?.trim()
+  if (!model) {
+    throw new Error('OpenAI Responses API request requires a non-empty model')
+  }
   const fetchFn = params.fetchOverride ?? (globalThis.fetch as typeof fetch)
+  const clientRequestId = randomUUID()
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${auth.accessToken}`,
     'Content-Type': 'application/json',
     Accept: 'text/event-stream',
-    'OpenAI-Beta': 'responses=experimental',
-    Origin: 'https://chatgpt.com',
-    Referer: 'https://chatgpt.com/',
-    originator: 'claude-code-best',
+    'x-client-request-id': clientRequestId,
   }
-  if (auth.accountId) {
-    headers['ChatGPT-Account-Id'] = auth.accountId
+  if (params.querySource) {
+    headers['x-prism-query-source'] = params.querySource.replace(/[\r\n]/g, '')
   }
-  const response = await fetchFn(
-    'https://chatgpt.com/backend-api/codex/responses',
-    {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(params.request),
-      signal: params.signal,
-    },
+  if (params.agentId) {
+    headers['x-prism-agent-id'] = params.agentId.replace(/[\r\n]/g, '')
+  }
+  const usesCustomProfile = Boolean(params.baseUrl || params.authKey)
+  let endpoint: string
+  if (usesCustomProfile) {
+    const baseUrl = (params.baseUrl || 'https://api.openai.com/v1').replace(
+      /\/+$/,
+      '',
+    )
+    endpoint = baseUrl.endsWith('/responses') ? baseUrl : `${baseUrl}/responses`
+    if (params.authKey) headers.Authorization = `Bearer ${params.authKey}`
+  } else {
+    const auth = await getValidChatGPTAuth()
+    endpoint = 'https://chatgpt.com/backend-api/codex/responses'
+    headers.Authorization = `Bearer ${auth.accessToken}`
+    headers['OpenAI-Beta'] = 'responses=experimental'
+    headers.Origin = 'https://chatgpt.com'
+    headers.Referer = 'https://chatgpt.com/'
+    headers.originator = 'claude-code-best'
+    if (auth.accountId) {
+      headers['ChatGPT-Account-Id'] = auth.accountId
+    }
+  }
+  const requestBody = JSON.stringify({ ...params.request, model })
+  logForDebugging(
+    `[OpenAI Responses] request id=${clientRequestId} source=${params.querySource ?? 'unknown'} model=${model} bodyBytes=${new TextEncoder().encode(requestBody).byteLength}`,
   )
+  const response = await fetchFn(endpoint, {
+    method: 'POST',
+    headers,
+    body: requestBody,
+    signal: params.signal,
+  })
   if (!response.ok) {
     const text = await response.text().catch(() => '')
+    logForDebugging(
+      `[OpenAI Responses] failed id=${clientRequestId} source=${params.querySource ?? 'unknown'} model=${model} status=${response.status}`,
+      { level: 'error' },
+    )
     throw new Error(
-      `ChatGPT Responses API request failed (${response.status})${text ? `: ${text.slice(0, 500)}` : ''}`,
+      `${usesCustomProfile ? 'OpenAI' : 'ChatGPT'} Responses API request failed (${response.status})${text ? `: ${text.slice(0, 500)}` : ''}`,
     )
   }
   return parseSSE(response)

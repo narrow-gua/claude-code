@@ -37,7 +37,12 @@ import { query } from './query.js'
 import { categorizeRetryableAPIError } from './services/api/errors.js'
 import type { MCPServerConnection } from './services/mcp/types.js'
 import type { AppState } from './state/AppState.js'
-import { type Tools, type ToolUseContext, toolMatchesName } from './Tool.js'
+import {
+  type ToolPermissionContext,
+  type Tools,
+  type ToolUseContext,
+  toolMatchesName,
+} from './Tool.js'
 import type { AgentDefinition } from '@claude-code-best/builtin-tools/tools/AgentTool/loadAgentsDir.js'
 import { SYNTHETIC_OUTPUT_TOOL_NAME } from '@claude-code-best/builtin-tools/tools/SyntheticOutputTool/SyntheticOutputTool.js'
 import type { APIError } from '@anthropic-ai/sdk'
@@ -123,6 +128,20 @@ const getCoordinatorUserContext: (
 ) => { [k: string]: string } = feature('COORDINATOR_MODE')
   ? require('./coordinator/coordinatorMode.js').getCoordinatorUserContext
   : () => ({})
+const appendUnionPlannerPrompt = feature('UNION_MODE')
+  ? (require('./union/prompt.js') as typeof import('./union/prompt.js'))
+      .appendUnionPlannerPrompt
+  : (prompt: ReturnType<typeof asSystemPrompt>) => prompt
+const getUnionPlannerDenial = feature('UNION_MODE')
+  ? (
+      require('./union/permissions.js') as typeof import('./union/permissions.js')
+    ).getUnionPlannerDenial
+  : () => null
+const applyUnionToolVisibility = feature('UNION_MODE')
+  ? (
+      require('./union/toolVisibility.js') as typeof import('./union/toolVisibility.js')
+    ).applyUnionToolVisibility
+  : (tools: Tools, _permissionContext?: ToolPermissionContext): Tools => tools
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 // Dead code elimination: conditional import for snip compaction
@@ -221,7 +240,7 @@ export class QueryEngine {
     const {
       cwd,
       commands,
-      tools,
+      tools: configuredTools,
       mcpClients,
       verbose = false,
       thinkingConfig,
@@ -243,6 +262,11 @@ export class QueryEngine {
       orphanedPermission,
     } = this.config
 
+    let tools = applyUnionToolVisibility(
+      configuredTools,
+      getAppState().toolPermissionContext,
+    )
+
     this.discoveredSkillNames.clear()
     this.permissionDenials = []
     setCwd(cwd)
@@ -258,6 +282,20 @@ export class QueryEngine {
       toolUseID,
       forceDecision,
     ) => {
+      const unionDenial = getUnionPlannerDenial(
+        tool,
+        input,
+        toolUseContext.agentType,
+      )
+      if (unionDenial) {
+        this.permissionDenials.push({
+          type: 'permission_denial',
+          tool_name: sdkCompatToolName(tool.name),
+          tool_use_id: toolUseID,
+          tool_input: input,
+        })
+        return unionDenial
+      }
       const result = await canUseTool(
         tool,
         input,
@@ -328,7 +366,7 @@ export class QueryEngine {
         ? await loadMemoryPrompt()
         : null
 
-    const systemPrompt = asSystemPrompt([
+    const baseSystemPrompt = asSystemPrompt([
       ...(customPrompt !== undefined ? [customPrompt] : defaultSystemPrompt),
       ...(memoryMechanicsPrompt ? [memoryMechanicsPrompt] : []),
       ...(appendSystemPrompt ? [appendSystemPrompt] : []),
@@ -439,6 +477,14 @@ export class QueryEngine {
 
     // Push new messages, including user input and any attachments
     this.mutableMessages.push(...messagesFromUserInput)
+
+    // Local commands can toggle Union for the current session. Refresh the
+    // visibility after command execution so the same QueryEngine instance
+    // never carries a stale SubmitUnionPlan entry into a later turn.
+    tools = applyUnionToolVisibility(
+      configuredTools,
+      getAppState().toolPermissionContext,
+    )
 
     // Update params to reflect updates from processing /slash commands
     const messages = [...this.mutableMessages]
@@ -666,6 +712,8 @@ export class QueryEngine {
         )
       })
     }
+
+    const systemPrompt = appendUnionPlannerPrompt(baseSystemPrompt)
 
     // Track current message usage (reset on each message_start)
     let currentMessageUsage: NonNullableUsage = EMPTY_USAGE

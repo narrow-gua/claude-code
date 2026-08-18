@@ -10,10 +10,7 @@ import type { EffortLevel } from 'src/entrypoints/sdk/runtimeTypes.js'
 import { resolveAntModel } from './model/antModels.js'
 import { getAntModelOverrideConfig } from './model/antModels.js'
 import { getModelSlotForModel } from './model/modelSlotRouting.js'
-import {
-  isChatGPTAuthMode,
-  isChatGPTCodexReasoningModel,
-} from './model/chatgptModels.js'
+import { isChatGPTCodexReasoningModel } from './model/chatgptModels.js'
 
 export type { EffortLevel }
 
@@ -88,11 +85,7 @@ export function modelSupportsEffort(model: string): boolean {
   if (supported3P !== undefined) {
     return supported3P
   }
-  if (
-    getAPIProvider() === 'openai' &&
-    isChatGPTAuthMode() &&
-    isChatGPTCodexReasoningModel(model)
-  ) {
+  if (isChatGPTCodexReasoningModel(model)) {
     return true
   }
   // Supported by a subset of Claude 4 models
@@ -392,11 +385,7 @@ export function getDefaultEffortForModel(
   // the model launch DRI and research. Default effort is a sensitive setting
   // that can greatly affect model quality and bashing.
 
-  if (
-    getAPIProvider() === 'openai' &&
-    isChatGPTAuthMode() &&
-    isChatGPTCodexReasoningModel(model)
-  ) {
+  if (isChatGPTCodexReasoningModel(model)) {
     return 'medium'
   }
 

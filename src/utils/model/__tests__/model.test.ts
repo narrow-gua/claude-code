@@ -5,7 +5,7 @@ import {
   modelAllows1MContextToggle,
   modelHasDefault1MContext,
 } from '../../context'
-import { firstPartyNameToCanonical } from '../model'
+import { firstPartyNameToCanonical, parseUserSpecifiedModel } from '../model'
 
 describe('Opus 5 capabilities', () => {
   test('uses the native 1M context window without changing legacy defaults', () => {
@@ -14,12 +14,20 @@ describe('Opus 5 capabilities', () => {
     expect(getContextWindowForModel('claude-opus-4-5-20251101')).toBe(200_000)
   })
 
-  test('only suppresses the picker toggle for native 1M models', () => {
+  test('suppresses the picker toggle for native 1M and Codex subscription models', () => {
     expect(modelAllows1MContextToggle('claude-opus-5')).toBe(false)
     expect(modelAllows1MContextToggle('claude-opus-4-7')).toBe(true)
     expect(modelAllows1MContextToggle('claude-sonnet-4-6')).toBe(true)
     expect(modelAllows1MContextToggle('claude-haiku-4-5')).toBe(true)
     expect(modelAllows1MContextToggle('custom-provider-model')).toBe(true)
+    expect(modelAllows1MContextToggle('gpt-5.6-sol')).toBe(false)
+    expect(modelHasDefault1MContext('gpt-5.6-sol')).toBe(true)
+    expect(modelHasDefault1MContext('gpt-5.6-terra')).toBe(true)
+    expect(modelHasDefault1MContext('gpt-5.6-luna')).toBe(false)
+    expect(getContextWindowForModel('gpt-5.6-sol')).toBe(1_050_000)
+    expect(getContextWindowForModel('gpt-5.6-terra')).toBe(1_050_000)
+    expect(getContextWindowForModel('gpt-5.6-luna')).toBe(400_000)
+    expect(getContextWindowForModel('gpt-5.6-luna[1m]')).toBe(400_000)
   })
 
   test('uses a 64K default and 128K upper output limit', () => {
@@ -27,6 +35,12 @@ describe('Opus 5 capabilities', () => {
       default: 64_000,
       upperLimit: 128_000,
     })
+  })
+})
+
+describe('Codex model group', () => {
+  test('resolves the group alias to the current Sol default', () => {
+    expect(parseUserSpecifiedModel('codex')).toBe('gpt-5.6-sol')
   })
 })
 

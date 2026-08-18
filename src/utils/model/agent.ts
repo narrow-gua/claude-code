@@ -39,8 +39,12 @@ export function getAgentModel(
   parentModel: string,
   toolSpecifiedModel?: ModelAlias,
   permissionMode?: PermissionMode,
+  options?: { ignoreGlobalSubagentModel?: boolean },
 ): string {
-  if (process.env.CLAUDE_CODE_SUBAGENT_MODEL) {
+  if (
+    !options?.ignoreGlobalSubagentModel &&
+    process.env.CLAUDE_CODE_SUBAGENT_MODEL
+  ) {
     return parseUserSpecifiedModel(process.env.CLAUDE_CODE_SUBAGENT_MODEL)
   }
 

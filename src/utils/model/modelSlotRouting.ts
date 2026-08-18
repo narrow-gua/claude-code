@@ -6,7 +6,13 @@ export type ModelSlotName =
   | 'glm'
   | 'grok'
   | 'kimi'
-export type ModelSlotApiMode = 'inherit' | 'anthropic' | 'openai' | 'gemini'
+  | 'codex'
+export type ModelSlotApiMode =
+  | 'inherit'
+  | 'anthropic'
+  | 'openai'
+  | 'gemini'
+  | 'chatgpt'
 export type ModelSlotRoutingProvider =
   | 'firstParty'
   | 'bedrock'
@@ -79,6 +85,11 @@ const SLOT_MODEL_ENV_VARS: Record<ModelSlotName, string[]> = {
     'OPENAI_DEFAULT_KIMI_MODEL',
     'GEMINI_DEFAULT_KIMI_MODEL',
   ],
+  codex: [
+    'ANTHROPIC_DEFAULT_CODEX_MODEL',
+    'OPENAI_DEFAULT_CODEX_MODEL',
+    'GEMINI_DEFAULT_CODEX_MODEL',
+  ],
 }
 
 function normalizeSlotModel(model: string): string {
@@ -118,6 +129,9 @@ export function getModelSlotForModel(
   if (normalized.includes('glm')) return 'glm'
   if (normalized.includes('grok')) return 'grok'
   if (normalized.includes('kimi')) return 'kimi'
+  if (normalized === 'gpt-5.6' || normalized.startsWith('gpt-5.6-')) {
+    return 'codex'
+  }
   return undefined
 }
 
@@ -131,7 +145,11 @@ export function resolveModelSlotApiOverride(
   const slot = getModelSlotForModel(model, env)
   if (!slot) return undefined
   const override = overrides?.[slot]
-  if (!override) return undefined
+  if (!override) {
+    return slot === 'codex'
+      ? { slot, provider: 'openai', apiMode: 'chatgpt' }
+      : undefined
+  }
 
   const selected = override.profileId
     ? profiles?.[override.profileId]
@@ -154,7 +172,9 @@ export function resolveModelSlotApiOverride(
       ? inheritedProvider
       : selected.apiMode === 'anthropic'
         ? 'firstParty'
-        : selected.apiMode
+        : selected.apiMode === 'chatgpt'
+          ? 'openai'
+          : selected.apiMode
 
   return {
     slot,

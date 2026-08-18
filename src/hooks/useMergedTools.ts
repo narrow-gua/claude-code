@@ -28,11 +28,7 @@ export function useMergedTools(
     // It handles: getTools() + MCP deny-rule filtering + dedup + MCP CLI exclusion.
     const assembled = assembleToolPool(toolPermissionContext, mcpTools)
 
-    return mergeAndFilterTools(
-      initialTools,
-      assembled,
-      toolPermissionContext.mode,
-    )
+    return mergeAndFilterTools(initialTools, assembled, toolPermissionContext)
   }, [
     initialTools,
     mcpTools,

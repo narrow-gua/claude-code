@@ -360,7 +360,9 @@ export async function* queryModelOpenAI(
     // 11. Call OpenAI API with streaming. ChatGPT subscription auth uses the
     // Codex Responses backend; API-key/OpenAI-compatible auth keeps the
     // existing Chat Completions adapter.
-    const adaptedStream = isChatGPTAuthEnabled()
+    const useChatGPTResponses =
+      isChatGPTAuthEnabled() || options.apiOverride?.apiMode === 'chatgpt'
+    const adaptedStream = useChatGPTResponses
       ? adaptResponsesStreamToAnthropic(
           await createChatGPTResponsesStream({
             request: buildResponsesRequest({
@@ -373,6 +375,10 @@ export async function* queryModelOpenAI(
             }),
             signal,
             fetchOverride: options.fetchOverride as unknown as typeof fetch,
+            baseUrl: options.apiOverride?.baseUrl,
+            authKey: options.apiOverride?.authKey,
+            querySource: options.querySource,
+            agentId: options.agentId,
           }),
           openaiModel,
         )

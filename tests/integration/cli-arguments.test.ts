@@ -15,7 +15,7 @@ function createTestProgram(): Command {
     .option('-p, --print', 'pipe mode')
     .option('--resume', 'resume session')
     .option('-v, --verbose', 'verbose output')
-    .option('--model <model>', 'model to use')
+    .option('-m, --model <model>', 'model to use')
     .option('--system-prompt <prompt>', 'system prompt')
     .option('--allowedTools <tools...>', 'allowed tools')
     .option('--max-turns <n>', 'max conversation turns', parseInt)
@@ -58,6 +58,12 @@ describe('CLI arguments: option parsing', () => {
     const program = createTestProgram()
     program.parse(['node', 'test', '--model', 'claude-opus-4-6'])
     expect(program.opts().model).toBe('claude-opus-4-6')
+  })
+
+  test('-m captures a Codex model group', () => {
+    const program = createTestProgram()
+    program.parse(['node', 'test', '-m', 'codex'])
+    expect(program.opts().model).toBe('codex')
   })
 
   test('--system-prompt captures string value', () => {
