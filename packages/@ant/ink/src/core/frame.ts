@@ -81,6 +81,12 @@ export type Patch =
       // flicker to its source React component.
       debug?: { triggerY: number; prevLine: string; nextLine: string }
     }
+  | {
+      /** Clear only the visible viewport, preserving native scrollback. */
+      type: 'clearScreen'
+      reason: FlickerReason
+      debug?: { triggerY: number; prevLine: string; nextLine: string }
+    }
   | { type: 'cursorHide' }
   | { type: 'cursorShow' }
   | { type: 'cursorMove'; x: number; y: number }

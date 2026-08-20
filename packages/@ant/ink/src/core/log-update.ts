@@ -11,11 +11,9 @@ import {
   type Cell,
   CellWidth,
   cellAt,
-  charInCellAt,
   diffEach,
   type Hyperlink,
   isEmptyCellAt,
-  type Screen,
   type StylePool,
   shiftRows,
   visibleCellAtIndex,
@@ -33,6 +31,7 @@ import {
   legacyConsoleMode,
   legacyConsoleResetMs,
 } from './legacyConsole.js'
+import { stringWidth } from './stringWidth.js'
 
 type State = {
   previousOutput: string
@@ -148,10 +147,11 @@ export class LogUpdate {
     // _after_ the viewport change which means calcuating text wrapping.
     // Resizing is a rare enough event that it's not practically a big issue.
     if (
-      next.viewport.height < prev.viewport.height ||
-      (prev.viewport.width !== 0 && next.viewport.width !== prev.viewport.width)
+      prev.viewport.width !== 0 &&
+      (next.viewport.height !== prev.viewport.height ||
+        next.viewport.width !== prev.viewport.width)
     ) {
-      return fullResetSequence_CAUSES_FLICKER(next, 'resize', stylePool)
+      return visibleResetSequence_CAUSES_FLICKER(next, 'resize', stylePool)
     }
 
     // Legacy Windows console (pre-ConPTY, build < 17763): the old conhost
@@ -229,47 +229,16 @@ export class LogUpdate {
     const prevHadScrollback =
       cursorAtBottom && prev.screen.height >= prev.viewport.height
     const isShrinking = next.screen.height < prev.screen.height
-    const nextFitsViewport = next.screen.height <= prev.viewport.height
-
-    // When shrinking from above-viewport to at-or-below-viewport, content that
-    // was in scrollback should now be visible. Terminal clear operations can't
-    // bring scrollback content into view, so we need a full reset.
-    // Use <= (not <) because even when next height equals viewport height, the
-    // scrollback depth from the previous render differs from a fresh render.
-    if (prevHadScrollback && nextFitsViewport && isShrinking) {
+    // Removing a tall inline overlay (permission dialog, picker, expanded
+    // output) changes which logical rows should occupy the viewport. Rows that
+    // have already entered native scrollback cannot be pulled back down with
+    // cursor movement, even when the next frame still exceeds the viewport.
+    // Repaint only the visible tail and preserve the user's older scrollback.
+    if (prevHadScrollback && isShrinking) {
       logForDebugging(
-        `Full reset (shrink->below): prevHeight=${prev.screen.height}, nextHeight=${next.screen.height}, viewport=${prev.viewport.height}`,
+        `Visible reset (shrink with scrollback): prevHeight=${prev.screen.height}, nextHeight=${next.screen.height}, viewport=${prev.viewport.height}`,
       )
-      return fullResetSequence_CAUSES_FLICKER(next, 'offscreen', stylePool)
-    }
-
-    if (
-      prev.screen.height >= prev.viewport.height &&
-      prev.screen.height > 0 &&
-      cursorAtBottom &&
-      !isGrowing
-    ) {
-      // viewportY = rows in scrollback from content overflow
-      // +1 for the row pushed by cursor-restore scroll
-      const viewportY = prev.screen.height - prev.viewport.height
-      const scrollbackRows = viewportY + 1
-
-      let scrollbackChangeY = -1
-      diffEach(prev.screen, next.screen, (_x, y) => {
-        if (y < scrollbackRows) {
-          scrollbackChangeY = y
-          return true // early exit
-        }
-      })
-      if (scrollbackChangeY >= 0) {
-        const prevLine = readLine(prev.screen, scrollbackChangeY)
-        const nextLine = readLine(next.screen, scrollbackChangeY)
-        return fullResetSequence_CAUSES_FLICKER(next, 'offscreen', stylePool, {
-          triggerY: scrollbackChangeY,
-          prevLine,
-          nextLine,
-        })
-      }
+      return visibleResetSequence_CAUSES_FLICKER(next, 'offscreen', stylePool)
     }
 
     const screen = new VirtualScreen(prev.cursor, next.viewport.width)
@@ -288,7 +257,7 @@ export class LogUpdate {
       // If we need to clear more lines than fit in the viewport, some are in
       // scrollback, so we need a full reset.
       if (linesToClear > prev.viewport.height) {
-        return fullResetSequence_CAUSES_FLICKER(
+        return visibleResetSequence_CAUSES_FLICKER(
           next,
           'offscreen',
           this.options.stylePool,
@@ -328,8 +297,6 @@ export class LogUpdate {
     let currentHyperlink: Hyperlink
 
     // First pass: render changes to existing rows (rows < prev.screen.height)
-    let needsFullReset = false
-    let resetTriggerY = -1
     diffEach(prev.screen, next.screen, (x, y, removed, added) => {
       // Skip new rows - we'll render them directly after
       if (growing && y >= prev.screen.height) {
@@ -365,12 +332,11 @@ export class LogUpdate {
         return
       }
 
-      // If the cell outside the viewport range has changed, we need to reset
-      // because we can't move the cursor there to draw.
+      // Native scrollback is immutable from the current cursor position.
+      // Changes there are no longer visible, so leave the historical terminal
+      // output intact and continue diffing rows that are actually reachable.
       if (y < viewportY) {
-        needsFullReset = true
-        resetTriggerY = y
-        return true // early exit
+        return
       }
 
       moveCursorTo(screen, x, y)
@@ -404,14 +370,6 @@ export class LogUpdate {
         })
       }
     })
-    if (needsFullReset) {
-      return fullResetSequence_CAUSES_FLICKER(next, 'offscreen', stylePool, {
-        triggerY: resetTriggerY,
-        prevLine: readLine(prev.screen, resetTriggerY),
-        nextLine: readLine(next.screen, resetTriggerY),
-      })
-    }
-
     // Reset styles before rendering new rows (they'll set their own styles)
     currentStyleId = transitionStyle(
       screen.diff,
@@ -517,14 +475,6 @@ function transitionStyle(
   return targetId
 }
 
-function readLine(screen: Screen, y: number): string {
-  let line = ''
-  for (let x = 0; x < screen.width; x++) {
-    line += charInCellAt(screen, x, y) ?? ' '
-  }
-  return line.trimEnd()
-}
-
 function fullResetSequence_CAUSES_FLICKER(
   frame: Frame,
   reason: FlickerReason,
@@ -535,6 +485,30 @@ function fullResetSequence_CAUSES_FLICKER(
   const screen = new VirtualScreen({ x: 0, y: 0 }, frame.viewport.width)
   renderFrame(screen, frame, stylePool)
   return [{ type: 'clearTerminal', reason, debug }, ...screen.diff]
+}
+
+/**
+ * Clear and repaint only the rows currently reachable in the terminal
+ * viewport. Main-screen content older than this slice is native scrollback:
+ * repainting it would both destroy history (CSI 3J) and make the virtual
+ * cursor diverge while the terminal scrolls through thousands of old rows.
+ *
+ * One viewport row is reserved for the cursor below the Ink content. The
+ * virtual y-coordinate starts at startY even though the physical cursor is at
+ * row 0 after clearScreen; this keeps subsequent logical cursor deltas correct
+ * while mapping the visible tail onto the actual viewport.
+ */
+function visibleResetSequence_CAUSES_FLICKER(
+  frame: Frame,
+  reason: FlickerReason,
+  stylePool: StylePool,
+  debug?: { triggerY: number; prevLine: string; nextLine: string },
+): Diff {
+  const visibleRows = Math.max(0, frame.viewport.height - 1)
+  const startY = Math.max(0, frame.screen.height - visibleRows)
+  const screen = new VirtualScreen({ x: 0, y: startY }, frame.viewport.width)
+  renderFrameSlice(screen, frame, startY, frame.screen.height, stylePool)
+  return [{ type: 'clearScreen', reason, debug }, ...screen.diff]
 }
 
 function renderFrame(
@@ -665,16 +639,21 @@ function writeCellWithStyleStr(
   cell: Cell,
   styleStr: string,
 ): boolean {
-  const cellWidth = cell.width === CellWidth.Wide ? 2 : 1
+  // The screen buffer classifies a cell as narrow/wide during layout, but the
+  // terminal is the final authority on how far a grapheme advances. Recheck
+  // wide cells here so unusual graphemes cannot desync the physical cursor
+  // from the virtual cursor used by later diffs.
+  const cellWidth =
+    cell.width === CellWidth.Wide ? Math.max(2, stringWidth(cell.char)) : 1
   const px = screen.cursor.x
   const vw = screen.viewportWidth
 
   // Don't write wide chars that would cross the viewport edge.
   // Single-codepoint chars (CJK) at vw-2 are safe; multi-codepoint
   // graphemes (flags, ZWJ emoji) need stricter threshold.
-  if (cellWidth === 2 && px < vw) {
+  if (cellWidth >= 2 && px < vw) {
     const threshold = cell.char.length > 2 ? vw : vw + 1
-    if (px + 2 >= threshold) {
+    if (px + cellWidth >= threshold) {
       return false
     }
   }
@@ -684,7 +663,8 @@ function writeCellWithStyleStr(
     diff.push({ type: 'styleStr', str: styleStr })
   }
 
-  const needsCompensation = cellWidth === 2 && needsWidthCompensation(cell.char)
+  const needsCompensation =
+    cellWidth >= 3 || (cellWidth === 2 && needsWidthCompensation(cell.char))
 
   // On terminals with old wcwidth tables, a compensated emoji only advances
   // the cursor 1 column, so the CHA below skips column x+1 without painting
@@ -694,7 +674,7 @@ function writeCellWithStyleStr(
   // CHA is 1-based, so column px+1 (0-based) is CHA target px+2.
   if (needsCompensation && px + 1 < vw) {
     diff.push({ type: 'cursorTo', col: px + 2 })
-    diff.push({ type: 'stdout', content: ' ' })
+    diff.push({ type: 'stdout', content: ' '.repeat(cellWidth - 1) })
     diff.push({ type: 'cursorTo', col: px + 1 })
   }
 
@@ -740,8 +720,14 @@ function moveCursorTo(screen: VirtualScreen, targetX: number, targetY: number) {
       ]
     }
 
-    // Standard same-line cursor move
-    return [[{ type: 'cursorMove', x: dx, y: dy }], { dx, dy }]
+    // Absolute horizontal positioning self-heals if the terminal rendered a
+    // previous ambiguous-width glyph differently from stringWidth(). A
+    // relative move would preserve and accumulate that physical cursor drift.
+    if (dx !== 0) {
+      return [[{ type: 'cursorTo', col: targetX + 1 }], { dx, dy }]
+    }
+
+    return [[], { dx: 0, dy: 0 }]
   })
 }
 
