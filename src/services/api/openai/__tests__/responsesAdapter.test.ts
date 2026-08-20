@@ -1,6 +1,9 @@
 import { describe, expect, mock, test } from 'bun:test'
 import { debugMock } from '../../../../../tests/mocks/debug'
-import { formatOpenAIPromptCacheKey } from '../openaiShared.js'
+import {
+  formatOpenAIPromptCacheKey,
+  getOpenAIPromptCacheKey,
+} from '../openaiShared.js'
 import { calculateCacheHitRate } from '../../../../utils/cacheWarning.js'
 
 mock.module('src/utils/debug.ts', debugMock)
@@ -113,6 +116,42 @@ describe('buildResponsesRequest', () => {
 
     expect(turn1.prompt_cache_key).toBe(turn2.prompt_cache_key)
     expect(turn1.prompt_cache_key).toBe('prism:same-session')
+  })
+})
+
+describe('getOpenAIPromptCacheKey', () => {
+  test('shares one session key between the root thread and subagents', () => {
+    const root = getOpenAIPromptCacheKey('session-abc-123', 'repl_main_thread')
+    const child = getOpenAIPromptCacheKey(
+      'session-abc-123',
+      'repl_main_thread',
+      'agent-worker-1',
+    )
+    const categorizedChild = getOpenAIPromptCacheKey(
+      'session-abc-123',
+      'agent:builtin:Explore',
+    )
+
+    expect(root).toBe('prism:session-abc-123')
+    expect(child).toBe(root)
+    expect(categorizedChild).toBe(root)
+  })
+
+  test('isolates unrelated helpers in stable source namespaces', () => {
+    const compact = getOpenAIPromptCacheKey('session-abc-123', 'compact')
+    const compactAgain = getOpenAIPromptCacheKey('session-abc-123', 'compact')
+    const autoDream = getOpenAIPromptCacheKey('session-abc-123', 'auto_dream')
+
+    expect(compact).toMatch(/^prism:session-abc-123:aux:[0-9a-f]{12}$/)
+    expect(compactAgain).toBe(compact)
+    expect(autoDream).not.toBe(compact)
+    expect(autoDream).not.toBe('prism:session-abc-123')
+  })
+
+  test('keeps full-context side questions on the parent cache lineage', () => {
+    expect(getOpenAIPromptCacheKey('session-abc-123', 'side_question')).toBe(
+      'prism:session-abc-123',
+    )
   })
 })
 

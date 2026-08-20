@@ -8,7 +8,7 @@
  * Keep this module free of bootstrap/state imports so pure request-body unit
  * tests and isolated mocks do not need a full session runtime.
  */
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 
 /**
  * Build a stable OpenAI `prompt_cache_key` for a session.
@@ -38,14 +38,54 @@ let processPromptCacheKey: string | null = null
  * Production callers should pass the active session ID. Without one, this
  * falls back to a process-stable key for compatibility and isolated tests.
  */
-export function getOpenAIPromptCacheKey(sessionIdOverride?: string): string {
-  if (sessionIdOverride) {
-    return formatOpenAIPromptCacheKey(sessionIdOverride)
+export function getOpenAIPromptCacheKey(
+  sessionIdOverride?: string,
+  querySource?: string,
+  agentId?: string,
+): string {
+  const sessionKey = sessionIdOverride
+    ? formatOpenAIPromptCacheKey(sessionIdOverride)
+    : getProcessPromptCacheKey()
+
+  // Codex deliberately gives root and spawned-agent requests different thread
+  // IDs but the same session-scoped prompt_cache_key. Preserve that lineage
+  // for normal conversation turns, full-context forks, and every real agent.
+  if (isConversationCacheSource(querySource, agentId)) {
+    return sessionKey
   }
+
+  // Background helpers (compaction, title generation, auto-dream, validation,
+  // etc.) have unrelated leading instructions. Giving them the conversation's
+  // routing key can make concurrent helper traffic compete with the long-lived
+  // conversation prefix. Keep each helper kind stable but in its own namespace.
+  const sourceHash = createHash('sha256')
+    .update(querySource as string)
+    .digest('hex')
+    .slice(0, 12)
+  return `${sessionKey}:aux:${sourceHash}`
+}
+
+function getProcessPromptCacheKey(): string {
   if (!processPromptCacheKey) {
     processPromptCacheKey = formatOpenAIPromptCacheKey(randomUUID())
   }
   return processPromptCacheKey
+}
+
+function isConversationCacheSource(
+  querySource: string | undefined,
+  agentId: string | undefined,
+): boolean {
+  if (agentId || !querySource) return true
+
+  return (
+    querySource === 'sdk' ||
+    querySource === 'workflow' ||
+    querySource === 'main_loop' ||
+    querySource === 'side_question' ||
+    querySource.startsWith('repl_main_thread') ||
+    querySource.startsWith('agent:')
+  )
 }
 
 /**

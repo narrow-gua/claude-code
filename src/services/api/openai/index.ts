@@ -352,7 +352,11 @@ export async function* queryModelOpenAI(
     // Match Codex's cache-routing semantics: root and subagent requests from
     // one conversation share the persisted session ID. This survives process
     // restarts and /resume, while /clear naturally gets a fresh key.
-    const promptCacheKey = getOpenAIPromptCacheKey(getSessionId())
+    const promptCacheKey = getOpenAIPromptCacheKey(
+      getSessionId(),
+      options.querySource,
+      options.agentId,
+    )
 
     logForDebugging(
       `[OpenAI] Calling model=${openaiModel}, messages=${openaiMessages.length}, tools=${openaiTools.length}, thinking=${enableThinking}, prompt_cache_key=${promptCacheKey}`,
